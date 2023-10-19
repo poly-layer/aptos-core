@@ -230,8 +230,8 @@ pub(crate) fn construct_args(
             arg,
             &mut gas_meter,
             is_view,
-        )?;
-        res_args.push(arg);
+        );
+        res_args.push(arg?);
     }
     Ok(res_args)
 }

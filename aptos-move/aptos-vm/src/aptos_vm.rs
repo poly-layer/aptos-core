@@ -12,8 +12,7 @@ use crate::{
     move_vm_ext::{
         get_max_binary_format_version, get_max_identifier_size,
         session::user_transaction_sessions::{
-            abort_hook::AbortHookSession, epilogue::EpilogueSession, prologue::PrologueSession,
-            user::UserSession,
+            epilogue::EpilogueSession, prologue::PrologueSession, user::UserSession,
         },
         AptosMoveResolver, MoveVmExt, SessionExt, SessionId, UserTransactionContext,
     },
@@ -97,10 +96,7 @@ use move_core_types::{
     value::{serialize_values, MoveValue},
     vm_status::StatusType,
 };
-use move_vm_runtime::{
-    logging::expect_no_verification_errors,
-    module_traversal::{TraversalContext, TraversalStorage},
-};
+use move_vm_runtime::module_traversal::{TraversalContext, TraversalStorage};
 use move_vm_types::gas::{GasMeter, UnmeteredGasMeter};
 use num_cpus;
 use once_cell::sync::{Lazy, OnceCell};
@@ -129,6 +125,8 @@ pub static RAYON_EXEC_POOL: Lazy<Arc<rayon::ThreadPool>> = Lazy::new(|| {
             .unwrap(),
     )
 });
+
+const ZERO_STORAGE_REFUND: u64 = 0;
 
 macro_rules! deprecated_module_bundle {
     () => {
@@ -565,133 +563,32 @@ impl AptosVM {
         change_set_configs: &ChangeSetConfigs,
         traversal_context: &mut TraversalContext,
     ) -> Result<(VMChangeSet, FeeStatement, ExecutionStatus), VMStatus> {
-        // Storage refund is zero since no slots are deleted in aborted transactions.
-        const ZERO_STORAGE_REFUND: u64 = 0;
+        let mut epilogue_session = EpilogueSession::new(
+            self,
+            txn_data,
+            resolver,
+            prologue_change_set,
+            ZERO_STORAGE_REFUND.into(),
+        )?;
 
-        let is_account_init_for_sponsored_transaction =
-            is_account_init_for_sponsored_transaction(txn_data, self.features(), resolver)?;
+        let status = self.inject_abort_info_if_available(status);
 
-        if is_account_init_for_sponsored_transaction {
-            let mut abort_hook_session =
-                AbortHookSession::new(self, txn_data, resolver, prologue_change_set)?;
-            // Abort information is injected using the user defined error in the Move contract.
-            let status = self.inject_abort_info_if_available(status);
-
-            abort_hook_session.execute(|session| {
-                create_account_if_does_not_exist(
-                    session,
-                    gas_meter,
-                    txn_data.sender(),
-                    traversal_context,
-                )
-                // if this fails, it is likely due to out of gas, so we try again without metering
-                // and then validate below that we charged sufficiently.
-                .or_else(|_err| {
-                    create_account_if_does_not_exist(
-                        session,
-                        &mut UnmeteredGasMeter,
-                        txn_data.sender(),
-                        traversal_context,
-                    )
-                })
-                .map_err(expect_no_verification_errors)
-                .or_else(|err| {
-                    expect_only_successful_execution(
-                        err,
-                        &format!("{:?}::{}", ACCOUNT_MODULE, CREATE_ACCOUNT_IF_DOES_NOT_EXIST),
-                        log_context,
-                    )
-                })
-            })?;
-
-            let mut change_set = abort_hook_session.finish(change_set_configs)?;
-            if let Err(err) = self.charge_change_set(&mut change_set, gas_meter, txn_data, resolver)
-            {
-                info!(
-                    *log_context,
-                    "Failed during charge_change_set: {:?}. Most likely exceeded gas limited.", err,
-                );
-            };
-
-            let fee_statement =
-                AptosVM::fee_statement_from_gas_meter(txn_data, gas_meter, ZERO_STORAGE_REFUND);
-
-            // Verify we charged sufficiently for creating an account slot
-            let gas_params = get_or_vm_startup_failure(&self.gas_params, log_context)?;
-            let gas_unit_price = u64::from(txn_data.gas_unit_price());
-            let gas_used = fee_statement.gas_used();
-            let storage_fee = fee_statement.storage_fee_used();
-            let storage_refund = fee_statement.storage_fee_refund();
-
-            let actual = gas_used * gas_unit_price + storage_fee - storage_refund;
-            let expected = u64::from(
-                gas_meter
-                    .disk_space_pricing()
-                    .hack_account_creation_fee_lower_bound(&gas_params.vm.txn),
-            );
-            if actual < expected {
-                expect_only_successful_execution(
-                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                        .with_message(
-                            "Insufficient fee for storing account for sponsored transaction"
-                                .to_string(),
-                        )
-                        .finish(Location::Undefined),
-                    &format!("{:?}::{}", ACCOUNT_MODULE, CREATE_ACCOUNT_IF_DOES_NOT_EXIST),
-                    log_context,
-                )?;
-            }
-
-            let mut epilogue_session = EpilogueSession::new(
-                self,
+        let fee_statement =
+            AptosVM::fee_statement_from_gas_meter(txn_data, gas_meter, ZERO_STORAGE_REFUND);
+        epilogue_session.execute(|session| {
+            transaction_validation::run_failure_epilogue(
+                session,
+                gas_meter.balance(),
+                fee_statement,
+                self.features(),
                 txn_data,
-                resolver,
-                change_set,
-                ZERO_STORAGE_REFUND.into(),
-            )?;
-
-            epilogue_session.execute(|session| {
-                transaction_validation::run_failure_epilogue(
-                    session,
-                    gas_meter.balance(),
-                    fee_statement,
-                    self.features(),
-                    txn_data,
-                    log_context,
-                    traversal_context,
-                )
-            })?;
-            epilogue_session
-                .finish(change_set_configs)
-                .map(|set| (set, fee_statement, status))
-        } else {
-            let mut epilogue_session = EpilogueSession::new(
-                self,
-                txn_data,
-                resolver,
-                prologue_change_set,
-                ZERO_STORAGE_REFUND.into(),
-            )?;
-
-            let status = self.inject_abort_info_if_available(status);
-
-            let fee_statement =
-                AptosVM::fee_statement_from_gas_meter(txn_data, gas_meter, ZERO_STORAGE_REFUND);
-            epilogue_session.execute(|session| {
-                transaction_validation::run_failure_epilogue(
-                    session,
-                    gas_meter.balance(),
-                    fee_statement,
-                    self.features(),
-                    txn_data,
-                    log_context,
-                    traversal_context,
-                )
-            })?;
-            epilogue_session
-                .finish(change_set_configs)
-                .map(|set| (set, fee_statement, status))
-        }
+                log_context,
+                traversal_context,
+            )
+        })?;
+        epilogue_session
+            .finish(change_set_configs)
+            .map(|set| (set, fee_statement, status))
     }
 
     fn success_transaction_cleanup(
@@ -1732,7 +1629,7 @@ impl AptosVM {
             log_context
         ));
         let change_set_configs = &storage_gas_params.change_set_configs;
-        let (prologue_change_set, mut user_session) = unwrap_or_discard!(prologue_session
+        let (prologue_change_set, user_session) = unwrap_or_discard!(prologue_session
             .into_user_session(
                 self,
                 &txn_data,
@@ -1740,20 +1637,6 @@ impl AptosVM {
                 self.gas_feature_version,
                 change_set_configs,
             ));
-
-        let is_account_init_for_sponsored_transaction = unwrap_or_discard!(
-            is_account_init_for_sponsored_transaction(&txn_data, self.features(), resolver)
-        );
-        if is_account_init_for_sponsored_transaction {
-            unwrap_or_discard!(
-                user_session.execute(|session| create_account_if_does_not_exist(
-                    session,
-                    gas_meter,
-                    txn.sender(),
-                    &mut traversal_context,
-                ))
-            );
-        }
 
         // We keep track of whether any newly published modules are loaded into the Vm's loader
         // cache as part of executing transactions. This would allow us to decide whether the cache
@@ -2757,24 +2640,6 @@ impl AptosSimulationVM {
             .expect("Materializing aggregator V1 deltas should never fail");
         (vm_status, txn_output)
     }
-}
-
-fn create_account_if_does_not_exist(
-    session: &mut SessionExt,
-    gas_meter: &mut impl GasMeter,
-    account: AccountAddress,
-    traversal_context: &mut TraversalContext,
-) -> VMResult<()> {
-    session
-        .execute_function_bypass_visibility(
-            &ACCOUNT_MODULE,
-            CREATE_ACCOUNT_IF_DOES_NOT_EXIST,
-            vec![],
-            serialize_values(&vec![MoveValue::Address(account)]),
-            gas_meter,
-            traversal_context,
-        )
-        .map(|_return_vals| ())
 }
 
 /// Signals that the transaction should trigger the flow for creating an account as part of a

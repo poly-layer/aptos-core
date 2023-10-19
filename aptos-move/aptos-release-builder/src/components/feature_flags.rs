@@ -114,6 +114,7 @@ pub enum FeatureFlag {
     PrimaryAPTFungibleStoreAtUserAddress,
     ObjectNativeDerivedAddress,
     DispatchableFungibleAsset,
+    LiteAccount,
 }
 
 fn generate_features_blob(writer: &CodeWriter, data: &[u64]) {
@@ -292,6 +293,7 @@ impl From<FeatureFlag> for AptosFeatureFlag {
                 AptosFeatureFlag::OBJECT_NATIVE_DERIVED_ADDRESS
             },
             FeatureFlag::DispatchableFungibleAsset => AptosFeatureFlag::DISPATCHABLE_FUNGIBLE_ASSET,
+            FeatureFlag::LiteAccount => AptosFeatureFlag::LITE_ACCOUNT,
         }
     }
 }
@@ -399,6 +401,7 @@ impl From<AptosFeatureFlag> for FeatureFlag {
                 FeatureFlag::ObjectNativeDerivedAddress
             },
             AptosFeatureFlag::DISPATCHABLE_FUNGIBLE_ASSET => FeatureFlag::DispatchableFungibleAsset,
+            AptosFeatureFlag::LITE_ACCOUNT => FeatureFlag::LiteAccount,
         }
     }
 }

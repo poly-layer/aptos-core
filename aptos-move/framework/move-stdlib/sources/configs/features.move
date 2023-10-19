@@ -530,6 +530,15 @@ module std::features {
         is_enabled(DISPATCHABLE_FUNGIBLE_ASSET)
     }
 
+    /// Whether to use lite account as the default account.
+    ///
+    /// Lifetime: transient
+    const LITE_ACCOUNT: u64 = 64;
+
+    public fun lite_account_enabled(): bool acquires Features {
+        is_enabled(LITE_ACCOUNT)
+    }
+
     // ============================================================================================
     // Feature Flag Implementation
 
