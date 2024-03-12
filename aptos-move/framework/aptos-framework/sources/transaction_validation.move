@@ -1,5 +1,4 @@
 module aptos_framework::transaction_validation {
-    use std::bcs;
     use std::error;
     use std::features;
     use std::option;
@@ -96,7 +95,7 @@ module aptos_framework::transaction_validation {
         sender: signer,
         gas_payer: address,
         txn_sequence_number: u64,
-        txn_authentication_key: vector<u8>,
+        txn_authentication_key: Option<vector<u8>>,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
@@ -110,73 +109,61 @@ module aptos_framework::transaction_validation {
 
         let transaction_sender = signer::address_of(&sender);
 
-        if (
-            transaction_sender == gas_payer
-                || (account::exists_at(transaction_sender) || lite_account::exists_at(transaction_sender))
-                || !features::sponsored_automatic_account_creation_enabled()
-                || txn_sequence_number > 0
-        ) {
-            let account_sequence_number =
-                if (account::exists_at(transaction_sender)) {
+        let account_sequence_number =
+            if (account::exists_at(transaction_sender)) {
+                assert!(
+                    option::is_some(&txn_authentication_key),
+                    error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+                );
+                assert!(
+                    option::destroy_some(txn_authentication_key) == account::get_authentication_key(transaction_sender),
+                    error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+                );
+                account::get_sequence_number(transaction_sender)
+            } else if (lite_account::exists_at(transaction_sender)) {
+                if (lite_account::using_dispatchable_authenticator(transaction_sender)) {
                     assert!(
-                        txn_authentication_key == account::get_authentication_key(transaction_sender),
-                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+                        option::is_none(&txn_authentication_key),
+                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
                     );
-                    account::get_sequence_number(transaction_sender)
-                } else if (lite_account::exists_at(transaction_sender)) {
-                    if (!lite_account::using_dispatchable_authenticator(transaction_sender)) {
-                        assert!(
-                            txn_authentication_key == lite_account::native_authenticator(transaction_sender),
-                            error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
-                        );
-                    } else {
-                        // todo: error code
-                        abort error::invalid_argument(PROLOGUE_EACCOUNT_DOES_NOT_EXIST)
-                    };
-                    // todo: concurrent txn will remove this line.
-                    if (!lite_account::account_resource_exists_at(transaction_sender)) {
-                        lite_account::create_account_resource(transaction_sender);
-                    };
-                    lite_account::get_sequence_number(transaction_sender)
                 } else {
-                    // This is a new account with default
-                    // todo: error code
-                    abort error::invalid_argument(PROLOGUE_EACCOUNT_DOES_NOT_EXIST)
+                    assert!(
+                        option::is_some(&txn_authentication_key),
+                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+                    );
+                    assert!(
+                        option::destroy_some(txn_authentication_key) == lite_account::native_authenticator(
+                            transaction_sender
+                        ),
+                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+                    );
                 };
+                // todo: concurrent txn will remove this line.
+                if (!lite_account::account_resource_exists_at(transaction_sender)) {
+                    lite_account::create_account_resource(transaction_sender);
+                };
+                lite_account::get_sequence_number(transaction_sender)
+            } else {
+                // This is a new account with default
+                abort error::invalid_argument(PROLOGUE_EACCOUNT_DOES_NOT_EXIST)
+            };
 
-            assert!(
-                txn_sequence_number < (1u64 << 63),
-                error::out_of_range(PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG)
-            );
+        assert!(
+            txn_sequence_number < (1u64 << 63),
+            error::out_of_range(PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG)
+        );
+        assert!(
+            txn_sequence_number >= account_sequence_number,
+            error::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD)
+        );
 
-            assert!(
-                txn_sequence_number >= account_sequence_number,
-                error::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD)
-            );
-
-            assert!(
-                txn_sequence_number == account_sequence_number,
-                error::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW)
-            );
-        } else {
-            // In this case, the transaction is sponsored and the account does not exist, so ensure
-            // the default values match.
-            assert!(
-                txn_sequence_number == 0,
-                error::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW)
-            );
-
-            assert!(
-                txn_authentication_key == bcs::to_bytes(&transaction_sender),
-                error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
-            );
-        };
+        assert!(
+            txn_sequence_number == account_sequence_number,
+            error::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW)
+        );
 
         let max_transaction_fee = txn_gas_price * txn_max_gas_units;
-        assert!(
-            coin::is_account_registered<AptosCoin>(gas_payer),
-            error::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT),
-        );
+
         assert!(
             coin::is_balance_at_least<AptosCoin>(gas_payer, max_transaction_fee),
             error::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT)
@@ -186,7 +173,7 @@ module aptos_framework::transaction_validation {
     fun script_prologue(
         sender: signer,
         txn_sequence_number: u64,
-        txn_public_key: vector<u8>,
+        txn_public_key: Option<vector<u8>>,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
@@ -203,7 +190,7 @@ module aptos_framework::transaction_validation {
     fun script_prologue_collect_deposit(
         sender: signer,
         txn_sequence_number: u64,
-        txn_public_key: vector<u8>,
+        txn_public_key: Option<vector<u8>>,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
@@ -219,9 +206,9 @@ module aptos_framework::transaction_validation {
     fun multi_agent_script_prologue(
         sender: signer,
         txn_sequence_number: u64,
-        txn_sender_public_key: vector<u8>,
+        txn_sender_public_key: Option<vector<u8>>,
         secondary_signer_addresses: vector<address>,
-        secondary_signer_public_key_hashes: vector<vector<u8>>,
+        secondary_signer_public_key_hashes: vector<Option<vector<u8>>>,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
@@ -243,7 +230,7 @@ module aptos_framework::transaction_validation {
 
     fun multi_agent_common_prologue(
         secondary_signer_addresses: vector<address>,
-        secondary_signer_public_key_hashes: vector<vector<u8>>,
+        secondary_signer_public_key_hashes: vector<Option<vector<u8>>>,
     ) {
         let num_secondary_signers = vector::length(&secondary_signer_addresses);
         assert!(
@@ -256,20 +243,58 @@ module aptos_framework::transaction_validation {
             spec {
                 invariant i <= num_secondary_signers;
                 invariant forall j in 0..i:
-                    account::exists_at(secondary_signer_addresses[j])
+                    (account::exists_at(secondary_signer_addresses[j])
                     && secondary_signer_public_key_hashes[j]
-                        == account::get_authentication_key(secondary_signer_addresses[j]);
+                        == option::some(
+                        account::get_authentication_key(secondary_signer_addresses[j])
+                    )) || (lite_account::exists_at(
+                        secondary_signer_addresses[j]
+                    ) && (lite_account::using_dispatchable_authenticator(
+                        secondary_signer_addresses[j]
+                    ) && option::is_none(secondary_signer_public_key_hashes[j]) ||
+                        (!lite_account::using_dispatchable_authenticator(
+                            secondary_signer_addresses[j]
+                        ) && option::is_some(secondary_signer_public_key_hashes[j]) &&
+                            option::destroy_some(
+                                secondary_signer_public_key_hashes[j]
+                            )
+                                == lite_account::native_authenticator(secondary_signer_addresses[j]))));
             };
             (i < num_secondary_signers)
         }) {
             let secondary_address = *vector::borrow(&secondary_signer_addresses, i);
-            assert!(account::exists_at(secondary_address), error::invalid_argument(PROLOGUE_EACCOUNT_DOES_NOT_EXIST));
-
             let signer_public_key_hash = *vector::borrow(&secondary_signer_public_key_hashes, i);
-            assert!(
-                signer_public_key_hash == account::get_authentication_key(secondary_address),
-                error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
-            );
+
+            if (account::exists_at(secondary_address)) {
+                assert!(
+                    option::is_some(&signer_public_key_hash),
+                    error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+                );
+                assert!(
+                    option::destroy_some(signer_public_key_hash) == account::get_authentication_key(secondary_address),
+                    error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+                );
+            } else if (lite_account::exists_at(secondary_address)) {
+                if (lite_account::using_dispatchable_authenticator(secondary_address)) {
+                    assert!(
+                        option::is_none(&signer_public_key_hash),
+                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+                    );
+                } else {
+                    assert!(
+                        option::is_some(&signer_public_key_hash),
+                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+                    );
+                    assert!(
+                        option::destroy_some(signer_public_key_hash) == lite_account::native_authenticator(
+                            secondary_address
+                        ),
+                        error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+                    );
+                };
+            } else {
+                abort error::invalid_argument(PROLOGUE_EACCOUNT_DOES_NOT_EXIST)
+            };
             i = i + 1;
         }
     }
@@ -277,9 +302,9 @@ module aptos_framework::transaction_validation {
     fun fee_payer_script_prologue(
         sender: signer,
         txn_sequence_number: u64,
-        txn_sender_public_key: vector<u8>,
+        txn_sender_public_key: Option<vector<u8>>,
         secondary_signer_addresses: vector<address>,
-        secondary_signer_public_key_hashes: vector<vector<u8>>,
+        secondary_signer_public_key_hashes: vector<Option<vector<u8>>>,
         fee_payer_address: address,
         fee_payer_public_key_hash: vector<u8>,
         txn_gas_price: u64,
@@ -299,10 +324,23 @@ module aptos_framework::transaction_validation {
             chain_id,
         );
         multi_agent_common_prologue(secondary_signer_addresses, secondary_signer_public_key_hashes);
-        assert!(
-            fee_payer_public_key_hash == account::get_authentication_key(fee_payer_address),
-            error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
-        );
+        if (account::exists_at(fee_payer_address)) {
+            assert!(
+                fee_payer_public_key_hash == account::get_authentication_key(fee_payer_address),
+                error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+            );
+        } else if (lite_account::exists_at(fee_payer_address)) {
+            if (!lite_account::using_dispatchable_authenticator(fee_payer_address)) {
+                assert!(
+                    fee_payer_public_key_hash == lite_account::native_authenticator(fee_payer_address),
+                    error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+                );
+            } else {
+                abort error::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY)
+            }
+        } else {
+            abort error::invalid_argument(PROLOGUE_EACCOUNT_DOES_NOT_EXIST)
+        };
     }
 
     /// `fee_payer_script_prologue()` then collect an optional deposit depending on the txn.
@@ -311,9 +349,9 @@ module aptos_framework::transaction_validation {
     fun fee_payer_script_prologue_collect_deposit(
         sender: signer,
         txn_sequence_number: u64,
-        txn_sender_public_key: vector<u8>,
+        txn_sender_public_key: Option<vector<u8>>,
         secondary_signer_addresses: vector<address>,
-        secondary_signer_public_key_hashes: vector<vector<u8>>,
+        secondary_signer_public_key_hashes: vector<Option<vector<u8>>>,
         fee_payer_address: address,
         fee_payer_public_key_hash: vector<u8>,
         txn_gas_price: u64,

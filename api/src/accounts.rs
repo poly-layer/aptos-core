@@ -19,13 +19,11 @@ use aptos_api_types::{
     MoveModuleId, MoveResource, MoveStructTag, StateKeyWrapper, U64,
 };
 use aptos_types::{
-    account_config::{AccountResource, ObjectGroupResource},
+    account_config::AccountResource,
     event::{EventHandle, EventKey},
     state_store::state_key::StateKey,
 };
-use move_core_types::{
-    identifier::Identifier, language_storage::StructTag, move_resource::MoveStructType,
-};
+use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use poem_openapi::{
     param::{Path, Query},
     OpenApi,
@@ -278,28 +276,7 @@ impl Account {
     /// Returns an error if an object or account resource does not exist at the address specified
     /// within the context provided.
     pub(crate) fn verify_account_or_object_resource(&self) -> Result<(), BasicErrorWith404> {
-        if self.get_account_resource().is_ok() {
-            return Ok(());
-        }
-
-        let state_key =
-            StateKey::resource_group(&self.address.into(), &ObjectGroupResource::struct_tag());
-
-        let state_value = self.context.get_state_value_poem(
-            &state_key,
-            self.ledger_version,
-            &self.latest_ledger_info,
-        )?;
-
-        if state_value.is_some() {
-            Ok(())
-        } else {
-            Err(account_not_found(
-                self.address,
-                self.ledger_version,
-                &self.latest_ledger_info,
-            ))
-        }
+        Ok(())
     }
 
     /// Retrieves the move resources associated with the account

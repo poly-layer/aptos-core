@@ -193,6 +193,7 @@ impl VMStatus {
     /// Returns `Ok` with a recorded status if it should be kept, `Err` of the error code if it
     /// should be discarded
     pub fn keep_or_discard(self) -> Result<KeptVMStatus, DiscardedVMStatus> {
+        println!("what??? {:?}", &self);
         match self {
             VMStatus::Executed => Ok(KeptVMStatus::Executed),
             VMStatus::MoveAbort(location, code) => Ok(KeptVMStatus::MoveAbort(location, code)),
@@ -229,12 +230,15 @@ impl VMStatus {
                 code_offset,
                 message,
                 ..
-            } => Ok(KeptVMStatus::ExecutionFailure {
+            } => {
+                println!("GZH failure {:?} {:?}", _status_code, message);
+                Ok(KeptVMStatus::ExecutionFailure {
                 location,
                 function,
                 code_offset,
                 message,
-            }),
+                })
+            }
             VMStatus::Error {
                 status_code: code,
                 message,
@@ -586,8 +590,8 @@ pub enum StatusCode {
     INSUFFICIENT_BALANCE_FOR_REQUIRED_DEPOSIT = 37,
     GAS_PARAMS_MISSING = 38,
     REQUIRED_DEPOSIT_INCONSISTENT_WITH_TXN_MAX_GAS = 39,
+    INVALID_GAS_PAYER_ACCOUNT = 40,
     // Reserved error code for future use
-    RESERVED_VALIDATION_ERROR_5 = 40,
     RESERVED_VALIDATION_ERROR_6 = 41,
     RESERVED_VALIDATION_ERROR_7 = 42,
     RESERVED_VALIDATION_ERROR_8 = 43,

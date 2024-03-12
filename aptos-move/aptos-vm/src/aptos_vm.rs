@@ -106,6 +106,7 @@ use std::{
     marker::Sync,
     sync::Arc,
 };
+use aptos_types::transaction::authenticator::{AccountAuthenticator, AuthenticationProof};
 
 static EXECUTION_CONCURRENCY_LEVEL: OnceCell<usize> = OnceCell::new();
 static NUM_EXECUTION_SHARD: OnceCell<usize> = OnceCell::new();
@@ -820,6 +821,9 @@ impl AptosVM {
             txn_data,
         )?;
 
+
+        // ============= Gas fee cannot change after this line =============
+
         self.success_transaction_cleanup(
             epilogue_session,
             gas_meter,
@@ -1520,6 +1524,24 @@ impl AptosVM {
             ));
         }
 
+        // Account Abstraction must have a fee payer as guarantor.
+        if transaction.authenticator_ref().sender().is_abstracted() && transaction.authenticator_ref().fee_payer_signer().is_none() {
+            return Err(VMStatus::error(
+                StatusCode::GAS_PAYER_ACCOUNT_MISSING,
+                Some("Transaction with abstracted sender must have fee payer.".to_owned()),
+            ));
+        }
+
+        // Fee payer cannot be abstracted account.
+        if let Some(fee_payer_signer) = transaction.authenticator_ref().fee_payer_signer() {
+            if matches!(fee_payer_signer, AccountAuthenticator::Abstraction {..}) {
+                return Err(VMStatus::error(
+                    StatusCode::INVALID_GAS_PAYER_ACCOUNT,
+                    Some("Fee payer cannot be abstracted account.".to_owned()),
+                ));
+            }
+        }
+
         let keyless_authenticators = aptos_types::keyless::get_authenticators(transaction)
             .map_err(|_| VMStatus::error(StatusCode::INVALID_SIGNATURE, None))?;
 
@@ -1629,7 +1651,7 @@ impl AptosVM {
             log_context
         ));
         let change_set_configs = &storage_gas_params.change_set_configs;
-        let (prologue_change_set, user_session) = unwrap_or_discard!(prologue_session
+        let (prologue_change_set, mut user_session) = unwrap_or_discard!(prologue_session
             .into_user_session(
                 self,
                 &txn_data,
@@ -1637,6 +1659,38 @@ impl AptosVM {
                 self.gas_feature_version,
                 change_set_configs,
             ));
+
+        let is_account_init_for_sponsored_transaction = unwrap_or_discard!(
+            is_account_init_for_sponsored_transaction(&txn_data, self.features(), resolver)
+        );
+        if is_account_init_for_sponsored_transaction {
+            unwrap_or_discard!(
+                user_session.execute(|session| create_account_if_does_not_exist(
+                    session,
+                    gas_meter,
+                    txn.sender(),
+                    &mut traversal_context,
+                ))
+            );
+        }
+
+        // Account Abstraction dispatchable authentication.
+        let senders = txn_data.senders();
+        let proofs = txn_data.authentication_proofs();
+        unwrap_or_discard!(itertools::zip_eq(senders, proofs).filter_map(
+            |(sender, proof)|
+                match proof {
+                    AuthenticationProof::Abstraction(data) =>
+                        Some(user_session.execute(|session| dispatchable_authenticate(
+                            session,
+                            gas_meter,
+                            sender,
+                            data.clone(),
+                            &mut traversal_context,
+                        ))),
+                    _ => None,
+                }
+        ).collect::<Result<_, _>>());
 
         // We keep track of whether any newly published modules are loaded into the Vm's loader
         // cache as part of executing transactions. This would allow us to decide whether the cache
@@ -1675,6 +1729,8 @@ impl AptosVM {
                 unwrap_or_discard!(Err(deprecated_module_bundle!()))
             },
         };
+
+
 
         let gas_usage = txn_data
             .max_gas_amount()
@@ -2640,6 +2696,43 @@ impl AptosSimulationVM {
             .expect("Materializing aggregator V1 deltas should never fail");
         (vm_status, txn_output)
     }
+}
+
+fn create_account_if_does_not_exist(
+    session: &mut SessionExt,
+    gas_meter: &mut impl GasMeter,
+    account: AccountAddress,
+    traversal_context: &mut TraversalContext,
+) -> VMResult<()> {
+    session
+        .execute_function_bypass_visibility(
+            &ACCOUNT_MODULE,
+            CREATE_ACCOUNT_IF_DOES_NOT_EXIST,
+            vec![],
+            serialize_values(&vec![MoveValue::Address(account)]),
+            gas_meter,
+            traversal_context,
+        )
+        .map(|_return_vals| ())
+}
+
+fn dispatchable_authenticate(
+    session: &mut SessionExt,
+    gas_meter: &mut impl GasMeter,
+    account: AccountAddress,
+    authenticator: Vec<u8>,
+    traversal_context: &mut TraversalContext,
+) -> VMResult<()> {
+    session
+        .execute_function_bypass_visibility(
+            &LITE_ACCOUNT_MODULE,
+            AUTHENTICATE,
+            vec![],
+            serialize_values(&vec![MoveValue::Address(account), MoveValue::vector_u8(authenticator)]),
+            gas_meter,
+            traversal_context,
+        )
+        .map(|_return_vals| ())
 }
 
 /// Signals that the transaction should trigger the flow for creating an account as part of a

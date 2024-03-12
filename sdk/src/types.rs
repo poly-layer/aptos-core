@@ -33,11 +33,13 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use aptos_types::transaction::Auth;
 
 #[derive(Debug)]
 enum LocalAccountAuthenticator {
     PrivateKey(AccountKey),
     Keyless(KeylessAccount),
+    Abstraction(Vec<u8>)
     // TODO: Add support for keyless authentication
 }
 
@@ -69,6 +71,7 @@ impl LocalAccountAuthenticator {
 
                 SignedTransaction::new_keyless(txn, keyless_account.public_key.clone(), sig)
             },
+            LocalAccountAuthenticator::Abstraction(_) => unreachable!()
         }
     }
 }
@@ -94,7 +97,7 @@ pub struct LocalAccount {
 
 pub fn get_apt_primary_store_address(address: AccountAddress) -> AccountAddress {
     let mut bytes = address.to_vec();
-    bytes.append(&mut AccountAddress::ONE.to_vec());
+    bytes.append(&mut AccountAddress::TEN.to_vec());
     bytes.push(0xFC);
     AccountAddress::from_bytes(aptos_crypto::hash::HashValue::sha3_256_of(&bytes).to_vec()).unwrap()
 }
@@ -224,6 +227,35 @@ impl LocalAccount {
             .into_inner()
     }
 
+    pub fn sign_aa_transaction_with_transaction_builder(
+        &self,
+        secondary_signers: Vec<&Self>,
+        fee_payer_signer: Option<&Self>,
+        builder: TransactionBuilder,
+    ) -> SignedTransaction {
+        let secondary_signer_addresses = secondary_signers
+            .iter()
+            .map(|signer| signer.address())
+            .collect();
+        let secondary_signer_auths = secondary_signers
+            .iter()
+            .map(|a| a.auth())
+            .collect();
+        let raw_txn = builder
+            .sender(self.address())
+            .sequence_number(self.increment_sequence_number())
+            .build();
+        raw_txn
+            .sign_aa_transaction(
+                &self.auth(),
+                secondary_signer_addresses,
+                secondary_signer_auths,
+                fee_payer_signer.map(|fee_payer| (fee_payer.address(), fee_payer.auth())),
+            )
+            .expect("Signing aa txn failed")
+            .into_inner()
+    }
+
     pub fn address(&self) -> AccountAddress {
         self.address
     }
@@ -232,6 +264,7 @@ impl LocalAccount {
         match &self.auth {
             LocalAccountAuthenticator::PrivateKey(key) => key.private_key(),
             LocalAccountAuthenticator::Keyless(_) => todo!(),
+            LocalAccountAuthenticator::Abstraction(_) => todo!(),
         }
     }
 
@@ -239,6 +272,7 @@ impl LocalAccount {
         match &self.auth {
             LocalAccountAuthenticator::PrivateKey(key) => key.public_key(),
             LocalAccountAuthenticator::Keyless(_) => todo!(),
+            LocalAccountAuthenticator::Abstraction(_) => todo!(),
         }
     }
 
@@ -248,7 +282,28 @@ impl LocalAccount {
             LocalAccountAuthenticator::Keyless(keyless_account) => {
                 keyless_account.authentication_key()
             },
+            LocalAccountAuthenticator::Abstraction(_) => todo!(),
         }
+    }
+
+    // pub fn abstraction_signature(&self) -> Option<Vec<u8>> {
+    //     match &self.auth {
+    //         LocalAccountAuthenticator::PrivateKey(_) => None,
+    //         LocalAccountAuthenticator::Keyless(_) => None,
+    //         LocalAccountAuthenticator::Abstraction(sig) => Some(sig.clone()),
+    //     }
+    // }
+
+    pub fn auth(&self) -> Auth {
+        match &self.auth {
+            LocalAccountAuthenticator::PrivateKey(key) => Auth::Ed25519(key.private_key()),
+            LocalAccountAuthenticator::Keyless(_) => todo!(),
+            LocalAccountAuthenticator::Abstraction(sig) => Auth::Abstraction(sig.clone()),
+        }
+    }
+
+    pub fn set_abstraction_signature(&mut self, signature: Vec<u8>) {
+        self.auth = LocalAccountAuthenticator::Abstraction(signature)
     }
 
     pub fn sequence_number(&self) -> u64 {
@@ -272,6 +327,7 @@ impl LocalAccount {
         match &mut self.auth {
             LocalAccountAuthenticator::PrivateKey(key) => std::mem::replace(key, new_key.into()),
             LocalAccountAuthenticator::Keyless(_) => todo!(),
+            LocalAccountAuthenticator::Abstraction(_) => todo!(),
         }
     }
 

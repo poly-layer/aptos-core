@@ -25,6 +25,8 @@
 -  [Function `native_authenticator`](#0x1_lite_account_native_authenticator)
 -  [Function `dispatchable_authenticator`](#0x1_lite_account_dispatchable_authenticator)
 -  [Function `increment_sequence_number`](#0x1_lite_account_increment_sequence_number)
+-  [Function `dispatchable_authenticator_internal`](#0x1_lite_account_dispatchable_authenticator_internal)
+-  [Function `authenticate`](#0x1_lite_account_authenticate)
 -  [Function `dispatchable_authenticate`](#0x1_lite_account_dispatchable_authenticate)
 
 
@@ -276,11 +278,11 @@ An integral part of Account Abstraction.
 
 
 
-<a id="0x1_lite_account_ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED"></a>
+<a id="0x1_lite_account_EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED"></a>
 
 
 
-<pre><code><b>const</b> <a href="lite_account.md#0x1_lite_account_ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED">ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED</a>: u64 = 6;
+<pre><code><b>const</b> <a href="lite_account.md#0x1_lite_account_EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED">EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED</a>: u64 = 6;
 </code></pre>
 
 
@@ -614,6 +616,7 @@ is returned. This way, the caller of this function can publish additional resour
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="lite_account.md#0x1_lite_account_using_dispatchable_authenticator">using_dispatchable_authenticator</a>(addr: <b>address</b>): bool {
+    <b>assert</b>!(<a href="lite_account.md#0x1_lite_account_exists_at">exists_at</a>(addr), <a href="../../aptos-stdlib/../move-stdlib/doc/error.md#0x1_error_not_found">error::not_found</a>(<a href="lite_account.md#0x1_lite_account_EACCOUNT_EXISTENCE">EACCOUNT_EXISTENCE</a>));
     <b>exists</b>&lt;<a href="lite_account.md#0x1_lite_account_DispatchableAuthenticator">DispatchableAuthenticator</a>&gt;(addr)
 }
 </code></pre>
@@ -699,8 +702,7 @@ is returned. This way, the caller of this function can publish additional resour
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="lite_account.md#0x1_lite_account_dispatchable_authenticator">dispatchable_authenticator</a>(addr: <b>address</b>): FunctionInfo <b>acquires</b> <a href="lite_account.md#0x1_lite_account_DispatchableAuthenticator">DispatchableAuthenticator</a> {
-    <b>assert</b>!(<a href="lite_account.md#0x1_lite_account_using_dispatchable_authenticator">using_dispatchable_authenticator</a>(addr), <a href="../../aptos-stdlib/../move-stdlib/doc/error.md#0x1_error_not_found">error::not_found</a>(<a href="lite_account.md#0x1_lite_account_ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED">ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED</a>));
-    <b>borrow_global</b>&lt;<a href="lite_account.md#0x1_lite_account_DispatchableAuthenticator">DispatchableAuthenticator</a>&gt;(addr).auth
+    *<a href="lite_account.md#0x1_lite_account_dispatchable_authenticator_internal">dispatchable_authenticator_internal</a>(addr)
 }
 </code></pre>
 
@@ -741,13 +743,64 @@ is returned. This way, the caller of this function can publish additional resour
 
 </details>
 
+<a id="0x1_lite_account_dispatchable_authenticator_internal"></a>
+
+## Function `dispatchable_authenticator_internal`
+
+
+
+<pre><code><b>fun</b> <a href="lite_account.md#0x1_lite_account_dispatchable_authenticator_internal">dispatchable_authenticator_internal</a>(addr: <b>address</b>): &<a href="function_info.md#0x1_function_info_FunctionInfo">function_info::FunctionInfo</a>
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code>inline <b>fun</b> <a href="lite_account.md#0x1_lite_account_dispatchable_authenticator_internal">dispatchable_authenticator_internal</a>(addr: <b>address</b>): &FunctionInfo {
+    <b>assert</b>!(<a href="lite_account.md#0x1_lite_account_using_dispatchable_authenticator">using_dispatchable_authenticator</a>(addr), <a href="../../aptos-stdlib/../move-stdlib/doc/error.md#0x1_error_not_found">error::not_found</a>(<a href="lite_account.md#0x1_lite_account_EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED">EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED</a>));
+    &<b>borrow_global</b>&lt;<a href="lite_account.md#0x1_lite_account_DispatchableAuthenticator">DispatchableAuthenticator</a>&gt;(addr).auth
+}
+</code></pre>
+
+
+
+</details>
+
+<a id="0x1_lite_account_authenticate"></a>
+
+## Function `authenticate`
+
+
+
+<pre><code><b>fun</b> <a href="lite_account.md#0x1_lite_account_authenticate">authenticate</a>(<a href="account.md#0x1_account">account</a>: <b>address</b>, signature: <a href="../../aptos-stdlib/../move-stdlib/doc/vector.md#0x1_vector">vector</a>&lt;u8&gt;)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>fun</b> <a href="lite_account.md#0x1_lite_account_authenticate">authenticate</a>(<a href="account.md#0x1_account">account</a>: <b>address</b>, signature: <a href="../../aptos-stdlib/../move-stdlib/doc/vector.md#0x1_vector">vector</a>&lt;u8&gt;) <b>acquires</b> <a href="lite_account.md#0x1_lite_account_DispatchableAuthenticator">DispatchableAuthenticator</a> {
+    <b>let</b> func_info = <a href="lite_account.md#0x1_lite_account_dispatchable_authenticator_internal">dispatchable_authenticator_internal</a>(<a href="account.md#0x1_account">account</a>);
+    <a href="function_info.md#0x1_function_info_load_module_from_function">function_info::load_module_from_function</a>(func_info);
+    <a href="lite_account.md#0x1_lite_account_dispatchable_authenticate">dispatchable_authenticate</a>(<a href="account.md#0x1_account">account</a>, signature, func_info);
+}
+</code></pre>
+
+
+
+</details>
+
 <a id="0x1_lite_account_dispatchable_authenticate"></a>
 
 ## Function `dispatchable_authenticate`
 
 
 
-<pre><code><b>fun</b> <a href="lite_account.md#0x1_lite_account_dispatchable_authenticate">dispatchable_authenticate</a>(signature: <a href="../../aptos-stdlib/../move-stdlib/doc/vector.md#0x1_vector">vector</a>&lt;u8&gt;, function: &<a href="function_info.md#0x1_function_info_FunctionInfo">function_info::FunctionInfo</a>)
+<pre><code><b>fun</b> <a href="lite_account.md#0x1_lite_account_dispatchable_authenticate">dispatchable_authenticate</a>(<a href="account.md#0x1_account">account</a>: <b>address</b>, signature: <a href="../../aptos-stdlib/../move-stdlib/doc/vector.md#0x1_vector">vector</a>&lt;u8&gt;, function: &<a href="function_info.md#0x1_function_info_FunctionInfo">function_info::FunctionInfo</a>)
 </code></pre>
 
 
@@ -757,6 +810,7 @@ is returned. This way, the caller of this function can publish additional resour
 
 
 <pre><code><b>native</b> <b>fun</b> <a href="lite_account.md#0x1_lite_account_dispatchable_authenticate">dispatchable_authenticate</a>(
+    <a href="account.md#0x1_account">account</a>: <b>address</b>,
     signature: <a href="../../aptos-stdlib/../move-stdlib/doc/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     function: &FunctionInfo
 );

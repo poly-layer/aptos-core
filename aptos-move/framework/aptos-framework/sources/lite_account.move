@@ -22,7 +22,7 @@ module aptos_framework::lite_account {
     const ESEQUENCE_NUMBER_OVERFLOW: u64 = 3;
     const EMALFORMED_AUTHENTICATION_KEY: u64 = 4;
     const ENATIVE_AUTHENTICATOR_IS_NOT_USED: u64 = 5;
-    const ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED: u64 = 6;
+    const EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED: u64 = 6;
     const EAUTH_FUNCTION_SIGNATURE_MISMATCH: u64 = 7;
     const ENOT_OWNER: u64 = 8;
 
@@ -190,6 +190,7 @@ module aptos_framework::lite_account {
 
     #[view]
     public fun using_dispatchable_authenticator(addr: address): bool {
+        assert!(exists_at(addr), error::not_found(EACCOUNT_EXISTENCE));
         exists<DispatchableAuthenticator>(addr)
     }
 
@@ -215,8 +216,7 @@ module aptos_framework::lite_account {
 
     #[view]
     public fun dispatchable_authenticator(addr: address): FunctionInfo acquires DispatchableAuthenticator {
-        assert!(using_dispatchable_authenticator(addr), error::not_found(ECUSTOMIZED_AUTHENTICATOR_IS_NOT_USED));
-        borrow_global<DispatchableAuthenticator>(addr).auth
+        *dispatchable_authenticator_internal(addr)
     }
 
     // Only called by transaction_validation.move in apilogue for sequential transactions.
@@ -233,7 +233,19 @@ module aptos_framework::lite_account {
         *sequence_number = *sequence_number + 1;
     }
 
+    inline fun dispatchable_authenticator_internal(addr: address): &FunctionInfo {
+        assert!(using_dispatchable_authenticator(addr), error::not_found(EDISPATCHABLE_AUTHENTICATOR_IS_NOT_USED));
+        &borrow_global<DispatchableAuthenticator>(addr).auth
+    }
+
+    fun authenticate(account: address, signature: vector<u8>) acquires DispatchableAuthenticator {
+        let func_info = dispatchable_authenticator_internal(account);
+        function_info::load_module_from_function(func_info);
+        dispatchable_authenticate(account, signature, func_info);
+    }
+
     native fun dispatchable_authenticate(
+        account: address,
         signature: vector<u8>,
         function: &FunctionInfo
     );

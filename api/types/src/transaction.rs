@@ -1529,6 +1529,25 @@ impl TryFrom<MultiKeySignature> for AccountAuthenticator {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Object)]
+pub struct AbstractionSignature {
+    pub signature: HexEncodedBytes,
+}
+
+impl VerifyInput for AbstractionSignature {
+    fn verify(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+impl TryFrom<AbstractionSignature> for AccountAuthenticator {
+    type Error = anyhow::Error;
+
+    fn try_from(value: AbstractionSignature) -> Result<Self, Self::Error> {
+        Ok(AccountAuthenticator::Abstraction { authenticator: value.signature.into() })
+    }
+}
+
 /// Account signature scheme
 ///
 /// The account signature scheme allows you to have two types of accounts:
@@ -1544,6 +1563,7 @@ pub enum AccountSignature {
     MultiEd25519Signature(MultiEd25519Signature),
     SingleKeySignature(SingleKeySignature),
     MultiKeySignature(MultiKeySignature),
+    AbstractionSignature(AbstractionSignature)
 }
 
 impl VerifyInput for AccountSignature {
@@ -1553,6 +1573,7 @@ impl VerifyInput for AccountSignature {
             AccountSignature::MultiEd25519Signature(inner) => inner.verify(),
             AccountSignature::SingleKeySignature(inner) => inner.verify(),
             AccountSignature::MultiKeySignature(inner) => inner.verify(),
+            AccountSignature::AbstractionSignature(inner) => inner.verify(),
         }
     }
 }
@@ -1566,6 +1587,7 @@ impl TryFrom<AccountSignature> for AccountAuthenticator {
             AccountSignature::MultiEd25519Signature(s) => s.try_into()?,
             AccountSignature::SingleKeySignature(s) => s.try_into()?,
             AccountSignature::MultiKeySignature(s) => s.try_into()?,
+            AccountSignature::AbstractionSignature(s) => s.try_into()?,
         })
     }
 }
@@ -1726,6 +1748,11 @@ impl From<&AccountAuthenticator> for AccountSignature {
                     signatures_required: public_keys.signatures_required(),
                 })
             },
+            Abstraction { authenticator } => Self::AbstractionSignature(
+                AbstractionSignature {
+                    signature: authenticator.clone().into()
+                }
+            )
         }
     }
 }
@@ -1784,6 +1811,7 @@ impl TryFrom<FeePayerSignature> for TransactionAuthenticator {
     type Error = anyhow::Error;
 
     fn try_from(value: FeePayerSignature) -> Result<Self, Self::Error> {
+        print!("SIG_DEBUG {:?}", value);
         let FeePayerSignature {
             sender,
             secondary_signer_addresses,
