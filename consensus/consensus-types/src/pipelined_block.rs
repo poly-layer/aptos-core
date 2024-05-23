@@ -23,6 +23,22 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[derive(Clone, Eq, PartialEq)]
+pub struct OrderedBlockWindow {
+    transactions: Vec<Block>,
+}
+// TODO: how to create a block window from a BlockStore/BlockTree?
+
+impl OrderedBlockWindow {
+    pub fn new(transactions: Vec<Block>) -> Self {
+        Self { transactions }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.transactions.is_empty()
+    }
+}
+
 /// A representation of a block that has been added to the execution pipeline. It might either be in ordered
 /// or in executed state. In the ordered state, the block is waiting to be executed. In the executed state,
 /// the block has been executed and the output is available.
@@ -30,6 +46,8 @@ use std::{
 pub struct PipelinedBlock {
     /// Block data that cannot be regenerated.
     block: Block,
+    /// A window of blocks that are needed for execution with the execution pool
+    block_window: OrderedBlockWindow,
     /// Input transactions in the order of execution
     input_transactions: Vec<SignedTransaction>,
     /// The state_compute_result is calculated for all the pending blocks prior to insertion to
@@ -110,6 +128,10 @@ impl PipelinedBlock {
         self
     }
 
+    pub fn set_block_window(mut self, block_window: OrderedBlockWindow) {
+        self.block_window = block_window;
+    }
+
     pub fn set_randomness(&self, randomness: Randomness) {
         assert!(self.randomness.set(randomness).is_ok());
     }
@@ -149,6 +171,9 @@ impl PipelinedBlock {
     pub fn new_ordered(block: Block) -> Self {
         Self {
             block,
+            block_window: OrderedBlockWindow {
+                transactions: vec![],
+            },
             input_transactions: vec![],
             state_compute_result: StateComputeResult::new_dummy(),
             randomness: OnceCell::new(),

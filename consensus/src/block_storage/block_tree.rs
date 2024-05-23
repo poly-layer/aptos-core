@@ -10,8 +10,10 @@ use crate::{
 };
 use anyhow::bail;
 use aptos_consensus_types::{
-    pipelined_block::PipelinedBlock, quorum_cert::QuorumCert,
-    timeout_2chain::TwoChainTimeoutCertificate, wrapped_ledger_info::WrappedLedgerInfo,
+    pipelined_block::{OrderedBlockWindow, PipelinedBlock},
+    quorum_cert::QuorumCert,
+    timeout_2chain::TwoChainTimeoutCertificate,
+    wrapped_ledger_info::WrappedLedgerInfo,
 };
 use aptos_crypto::HashValue;
 use aptos_logger::prelude::*;
@@ -223,7 +225,7 @@ impl BlockTree {
 
     pub(super) fn insert_block(
         &mut self,
-        block: PipelinedBlock,
+        mut block: PipelinedBlock,
     ) -> anyhow::Result<Arc<PipelinedBlock>> {
         let block_id = block.id();
         if let Some(existing_block) = self.get_block(&block_id) {
@@ -235,14 +237,22 @@ impl BlockTree {
             Ok(existing_block)
         } else {
             match self.get_linkable_block_mut(&block.parent_id()) {
-                Some(parent_block) => parent_block.add_child(block_id),
+                Some(parent_block) => {
+                    parent_block.add_child(block_id);
+                    // TODO: is there some placeholder for a root block that needs to be ignored?
+                    // TODO: for now this is just hardcoded for window size 2 (current and parent)
+                    block.set_block_window(OrderedBlockWindow::new(vec![parent_block
+                        .executed_block
+                        .block()
+                        .clone()]));
+                    let linkable_block = LinkableBlock::new(block);
+                    let arc_block = Arc::clone(linkable_block.executed_block());
+                    assert!(self.id_to_block.insert(block_id, linkable_block).is_none());
+                    counters::NUM_BLOCKS_IN_TREE.inc();
+                    Ok(arc_block)
+                },
                 None => bail!("Parent block {} not found", block.parent_id()),
-            };
-            let linkable_block = LinkableBlock::new(block);
-            let arc_block = Arc::clone(linkable_block.executed_block());
-            assert!(self.id_to_block.insert(block_id, linkable_block).is_none());
-            counters::NUM_BLOCKS_IN_TREE.inc();
-            Ok(arc_block)
+            }
         }
     }
 
