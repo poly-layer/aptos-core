@@ -8,7 +8,6 @@ use aptos_crypto::{hash::CryptoHash, HashValue};
 use aptos_experimental_runtimes::thread_manager::THREAD_MANAGER;
 use aptos_scratchpad::{FrozenSparseMerkleTree, SparseMerkleTree, StateStoreStatus};
 use aptos_types::{
-    proof::SparseMerkleProofExt,
     state_store::{
         errors::StateviewError, state_key::StateKey, state_storage_usage::StateStorageUsage,
         state_value::StateValue, StateViewId, TStateView,
@@ -20,12 +19,13 @@ use core::fmt;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     sync::Arc,
 };
+use aptos_logger::info;
 
 static IO_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
     rayon::ThreadPoolBuilder::new()
@@ -77,6 +77,10 @@ impl ShardedStateCache {
 
     pub fn par_iter(&self) -> impl IndexedParallelIterator<Item = &StateCacheShard> {
         self.shards.par_iter()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &StateCacheShard> {
+        self.shards.iter()
     }
 }
 
@@ -134,7 +138,9 @@ pub struct CachedStateView {
     /// the corresponding key has been deleted. This is a temporary hack until we support deletion
     /// in JMT node.
     sharded_state_cache: ShardedStateCache,
-    proof_fetcher: Arc<AsyncProofFetcher>,
+
+    /// db
+    reader: Arc<dyn DbReader>,
 }
 
 impl Debug for CachedStateView {
@@ -152,7 +158,7 @@ impl CachedStateView {
         reader: Arc<dyn DbReader>,
         next_version: Version,
         speculative_state: SparseMerkleTree<StateValue>,
-        proof_fetcher: Arc<AsyncProofFetcher>,
+        _proof_fetcher: Arc<AsyncProofFetcher>,
     ) -> Result<Self> {
         // n.b. Freeze the state before getting the state snapshot, otherwise it's possible that
         // after we got the snapshot, in-mem trees newer than it gets dropped before being frozen,
@@ -162,27 +168,26 @@ impl CachedStateView {
         let snapshot = reader
             .get_state_snapshot_before(next_version)
             .map_err(Into::<StateviewError>::into)?;
+        info!(
+            snapshot = snapshot,
+            "alden alden alden."
+        );
 
-        Ok(Self::new_impl(
-            id,
-            snapshot,
-            speculative_state,
-            proof_fetcher,
-        ))
+        Ok(Self::new_impl(id, snapshot, speculative_state, reader))
     }
 
     pub fn new_impl(
         id: StateViewId,
         snapshot: Option<(Version, HashValue)>,
         speculative_state: FrozenSparseMerkleTree<StateValue>,
-        proof_fetcher: Arc<AsyncProofFetcher>,
+        reader: Arc<dyn DbReader>,
     ) -> Self {
         Self {
             id,
             snapshot,
             speculative_state,
             sharded_state_cache: ShardedStateCache::default(),
-            proof_fetcher,
+            reader,
         }
     }
 
@@ -207,10 +212,25 @@ impl CachedStateView {
     }
 
     pub fn into_state_cache(self) -> StateCache {
+        // FIXME(aldenhu): make faster
+        let proofs = self
+            .sharded_state_cache
+            .par_iter()
+            .map(|shard| {
+                shard.iter().map(|dashmap_ref| {
+                    let (key, (_val_ver_opt, val_opt)) = dashmap_ref.pair();
+                    (key.hash(), val_opt.as_ref().map(CryptoHash::hash))
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .flatten()
+            .collect();
+
         StateCache {
             frozen_base: self.speculative_state,
             sharded_state_cache: self.sharded_state_cache,
-            proofs: self.proof_fetcher.get_proof_cache(),
+            proofs,
         }
     }
 
@@ -223,39 +243,28 @@ impl CachedStateView {
         match self.speculative_state.get(key_hash) {
             StateStoreStatus::ExistsInScratchPad(value) => Ok((None, Some(value))),
             StateStoreStatus::DoesNotExist => Ok((None, None)),
-            // Part of the tree is unknown, need to request proof for later usage (updating the tree)
-            StateStoreStatus::UnknownSubtreeRoot {
-                hash: subtree_root_hash,
-                depth: subtree_root_depth,
-            } => self.fetch_value_and_maybe_proof_in_snapshot(
-                state_key,
-                Some((subtree_root_hash, subtree_root_depth)),
-            ),
             // Tree is known, but we only know the hash of the value, need to request the actual
             // StateValue.
             StateStoreStatus::UnknownValue => {
                 self.fetch_value_and_maybe_proof_in_snapshot(state_key, None)
             },
+            StateStoreStatus::UnknownSubtreeRoot { .. } => unreachable!(),
         }
     }
 
     fn fetch_value_and_maybe_proof_in_snapshot(
         &self,
         state_key: &StateKey,
-        fetch_proof: Option<(HashValue, usize)>,
+        _fetch_proof: Option<(HashValue, usize)>,
     ) -> Result<(Option<Version>, Option<StateValue>)> {
         let version_and_value_opt = match self.snapshot {
             None => None,
-            Some((version, _root_hash)) => match fetch_proof {
-                None => self.proof_fetcher.fetch_state_value(state_key, version)?,
-                Some((subtree_root_hash, subtree_depth)) => self
-                    .proof_fetcher
-                    .fetch_state_value_with_version_and_schedule_proof_read(
-                        state_key,
-                        version,
-                        subtree_depth,
-                        Some(subtree_root_hash),
-                    )?,
+            Some((version, _root_hash)) => {
+                let _timer = TIMER
+                    .with_label_values(&["async_proof_fetcher_fetch"])
+                    .start_timer();
+                self.reader
+                    .get_state_value_with_version_by_version(state_key, version)?
             },
         };
         Ok(match version_and_value_opt {
@@ -268,7 +277,7 @@ impl CachedStateView {
 pub struct StateCache {
     pub frozen_base: FrozenSparseMerkleTree<StateValue>,
     pub sharded_state_cache: ShardedStateCache,
-    pub proofs: HashMap<HashValue, SparseMerkleProofExt>,
+    pub proofs: HashMap<HashValue, Option<HashValue>>,
 }
 
 impl TStateView for CachedStateView {
