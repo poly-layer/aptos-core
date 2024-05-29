@@ -100,7 +100,8 @@ use aptos_types::{
     nibble::nibble_path::NibblePath, proof::SparseMerkleLeafNode,
     state_store::state_storage_usage::StateStorageUsage,
 };
-use fastcrypto::hash::MultisetHash;
+use fastcrypto::hash::{EllipticCurveMultisetHash, MultisetHash};
+use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -422,6 +423,36 @@ where
             return Ok(self.clone());
         }
 
+        let inc_hash_diff = updates
+            .par_iter()
+            .fold(
+                EllipticCurveMultisetHash::default,
+                |mut inc_hash, (key, val_opt)| {
+                    if let Some(old_val) = proof_reader.get_proof(key.0) {
+                        let old_hash = SparseMerkleLeafNode::new(key.0, old_val)
+                            .hash()
+                            .into_inner();
+                        inc_hash.remove(old_hash);
+                    }
+                    if let Some(Some(new_val)) = val_opt {
+                        let new_hash = SparseMerkleLeafNode::new(key.0, new_val.hash())
+                            .hash()
+                            .into_inner();
+                        inc_hash.insert(new_hash);
+                    }
+                    inc_hash
+                },
+            )
+            .reduce(
+                EllipticCurveMultisetHash::default,
+                |mut inc_hash, other_inc_hash| {
+                    inc_hash.union(&other_inc_hash);
+                    inc_hash
+                },
+            );
+        let mut inc_hash = self.smt.inner.root().inc_hash.clone();
+        inc_hash.union(&inc_hash_diff);
+
         let content = self
             .smt
             .inner
@@ -429,24 +460,6 @@ where
             .content
             .view_layers_since(&self.base_smt.inner.root().content)
             .new_layer(&updates[..]);
-
-        let hashes_to_remove = updates.iter().filter_map(|(k, _)| {
-            proof_reader.get_proof(k.0).map(|value_hash| {
-                SparseMerkleLeafNode::new(k.0, value_hash)
-                    .hash()
-                    .into_inner()
-            })
-        });
-        let hashes_to_insert = updates.iter().filter_map(|(k, v)| {
-            v.as_ref().and_then(|val| {
-                val.as_ref()
-                    .map(|v| SparseMerkleLeafNode::new(k.0, v.hash()).hash().into_inner())
-            })
-        });
-
-        let mut inc_hash = self.smt.inner.root().inc_hash.clone();
-        inc_hash.remove_all(hashes_to_remove);
-        inc_hash.insert_all(hashes_to_insert);
 
         let root = Root::new(inc_hash, content);
 

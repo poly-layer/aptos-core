@@ -13,7 +13,7 @@ use crate::{
 };
 use aptos_logger::trace;
 use aptos_scratchpad::SmtAncestors;
-use aptos_storage_interface::{state_delta::StateDelta};
+use aptos_storage_interface::state_delta::StateDelta;
 use aptos_types::state_store::state_value::StateValue;
 use static_assertions::const_assert;
 use std::{

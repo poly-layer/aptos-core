@@ -6,6 +6,7 @@ use crate::{
 };
 use aptos_crypto::{hash::CryptoHash, HashValue};
 use aptos_experimental_runtimes::thread_manager::THREAD_MANAGER;
+use aptos_logger::info;
 use aptos_scratchpad::{FrozenSparseMerkleTree, SparseMerkleTree, StateStoreStatus};
 use aptos_types::{
     state_store::{
@@ -25,7 +26,6 @@ use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
 };
-use aptos_logger::info;
 
 static IO_POOL: Lazy<rayon::ThreadPool> = Lazy::new(|| {
     rayon::ThreadPoolBuilder::new()
@@ -168,10 +168,7 @@ impl CachedStateView {
         let snapshot = reader
             .get_state_snapshot_before(next_version)
             .map_err(Into::<StateviewError>::into)?;
-        info!(
-            snapshot = snapshot,
-            "alden alden alden."
-        );
+        info!(snapshot = snapshot, "alden alden alden.");
 
         Ok(Self::new_impl(id, snapshot, speculative_state, reader))
     }
@@ -212,15 +209,17 @@ impl CachedStateView {
     }
 
     pub fn into_state_cache(self) -> StateCache {
-        // FIXME(aldenhu): make faster
         let proofs = self
             .sharded_state_cache
             .par_iter()
             .map(|shard| {
-                shard.iter().map(|dashmap_ref| {
-                    let (key, (_val_ver_opt, val_opt)) = dashmap_ref.pair();
-                    (key.hash(), val_opt.as_ref().map(CryptoHash::hash))
-                })
+                shard
+                    .par_iter()
+                    .map(|dashmap_ref| {
+                        let (key, (_val_ver_opt, val_opt)) = dashmap_ref.pair();
+                        (key.hash(), val_opt.as_ref().map(CryptoHash::hash))
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>()
             .into_iter()

@@ -5,20 +5,19 @@
 
 use crate::{
     metrics::{LATEST_SNAPSHOT_VERSION, OTHER_TIMERS_SECONDS},
+    schema::jellyfish_merkle_node::JellyfishMerkleNodeSchema,
+    state_merkle_db::Node,
     state_store::{buffered_state::CommitMessage, StateDb},
 };
 use anyhow::{anyhow, ensure, Result};
 use aptos_crypto::HashValue;
+use aptos_jellyfish_merkle::node_type::NodeKey;
 use aptos_logger::{info, trace};
 use aptos_metrics_core::TimerHelper;
 use aptos_scratchpad::SmtAncestors;
 use aptos_storage_interface::state_delta::StateDelta;
-use aptos_types::state_store::state_value::StateValue;
+use aptos_types::state_store::{state_key::StateKey, state_value::StateValue};
 use std::sync::{mpsc::Receiver, Arc};
-use aptos_jellyfish_merkle::node_type::{Children, NodeKey};
-use aptos_types::state_store::state_key::StateKey;
-use crate::schema::jellyfish_merkle_node::JellyfishMerkleNodeSchema;
-use crate::state_merkle_db::Node;
 
 pub struct StateMerkleBatch {
     // pub top_levels_batch: SchemaBatch,
@@ -66,8 +65,7 @@ impl StateMerkleBatchCommitter {
                         .with_label_values(&["commit_jellyfish_merkle_nodes"])
                         .start_timer();
 
-                    self
-                        .state_db
+                    self.state_db
                         .state_merkle_db
                         .metadata_db()
                         .put::<JellyfishMerkleNodeSchema>(
@@ -76,8 +74,9 @@ impl StateMerkleBatchCommitter {
                                 root_hash,
                                 root_hash,
                                 (StateKey::raw(b"root"), current_version),
-                            )
-                        ).unwrap();
+                            ),
+                        )
+                        .unwrap();
 
                     /*
                     // commit jellyfish merkle nodes
