@@ -274,6 +274,13 @@ impl BlockStore {
             committed_round = root.0.round(),
             block_id = root.0.id(),
         );
+        info!(
+            "sync_to_highest_ordered_cert finished with blocks: {:?}",
+            blocks
+                .iter()
+                .map(|b| format!("epoch: {}, round: {}, id: {}", b.epoch(), b.round(), b.id()))
+                .collect::<Vec<_>>()
+        );
         self.rebuild(
             root,
             root_metadata,

@@ -260,7 +260,11 @@ impl BlockTree {
             }
             ensure!(
                 block_window.len() as u64 == window_size,
-                "Block window is not complete"
+                "Block window is not complete. block_window.len: {}, window_size: {}, epoch: {}, round: {}",
+                block_window.len(),
+                window_size,
+                block.epoch(),
+                block.round(),
             );
 
             match self.get_linkable_block_mut(&block.parent_id()) {
