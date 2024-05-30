@@ -318,10 +318,14 @@ impl BlockStore {
             highest_quorum_cert,
         );
 
+        let highest_commit_cert_round = highest_commit_cert.ledger_info().ledger_info().round();
+        // TODO: window size of 3 (current block + 2), needs to be a config
+        let target_round = highest_commit_cert_round
+            .min(0)
+            .min(highest_quorum_cert.certified_block().round() - 2);
+
         // we fetch the blocks from
-        let num_blocks = highest_quorum_cert.certified_block().round()
-            - highest_commit_cert.ledger_info().ledger_info().round()
-            + 1;
+        let num_blocks = highest_quorum_cert.certified_block().round() - target_round + 1;
 
         // although unlikely, we might wrap num_blocks around on a 32-bit machine
         assert!(num_blocks < std::usize::MAX as u64);
@@ -592,7 +596,8 @@ impl BlockRetriever {
             let request = BlockRetrievalRequest::new_with_target_block_id(
                 block_id,
                 retrieve_batch_size,
-                target_block_id,
+                // TODO: Why is SucceededWithTarget even significant?
+                HashValue::zero(),
             );
             loop {
                 tokio::select! {
@@ -720,7 +725,8 @@ impl BlockRetriever {
                 },
             }
         }
-        assert_eq!(result_blocks.last().unwrap().id(), target_block_id);
+        // assert_eq!(result_blocks.last().unwrap().id(), target_block_id);
+        assert_eq!(result_blocks.len() as u64, num_blocks);
         Ok(result_blocks)
     }
 
