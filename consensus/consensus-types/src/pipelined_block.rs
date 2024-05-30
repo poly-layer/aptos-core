@@ -11,6 +11,7 @@ use crate::{
 };
 use aptos_crypto::hash::HashValue;
 use aptos_executor_types::StateComputeResult;
+use aptos_logger::info;
 use aptos_types::{
     block_info::BlockInfo, contract_event::ContractEvent, randomness::Randomness,
     transaction::SignedTransaction, validator_txn::ValidatorTransaction,
@@ -138,6 +139,15 @@ impl PipelinedBlock {
     }
 
     pub fn set_block_window(mut self, block_window: OrderedBlockWindow) -> Self {
+        info!(
+            "set_block_window for PipelinedBlock with block_id: {}, parent_id: {}, round: {}, epoch: {}, block_window: {:?}",
+            self.block.id(),
+            self.block.parent_id(),
+            self.block.round(),
+            self.block.epoch(),
+            block_window.blocks().iter().map(|b| b.id()).collect::<Vec<_>>(),
+        );
+
         self.block_window = block_window;
         self
     }
@@ -169,6 +179,15 @@ impl PipelinedBlock {
         input_transactions: Vec<SignedTransaction>,
         state_compute_result: StateComputeResult,
     ) -> Self {
+        info!(
+            "New PipelinedBlock with block_id: {}, parent_id: {}, round: {}, epoch: {}, txns: {}",
+            block.id(),
+            block.parent_id(),
+            block.round(),
+            block.epoch(),
+            block.payload().map_or(0, |p| p.len())
+        );
+
         Self {
             block,
             block_window: OrderedBlockWindow::new(vec![]),
