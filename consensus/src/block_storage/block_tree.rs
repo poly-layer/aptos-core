@@ -100,6 +100,7 @@ pub struct BlockTree {
     pruned_block_ids: VecDeque<HashValue>,
     /// Num pruned blocks to keep in memory.
     max_pruned_blocks_in_mem: usize,
+    window_size: usize,
 }
 
 impl BlockTree {
@@ -109,6 +110,7 @@ impl BlockTree {
         root_ordered_cert: WrappedLedgerInfo,
         root_commit_cert: WrappedLedgerInfo,
         max_pruned_blocks_in_mem: usize,
+        window_size: usize,
         highest_2chain_timeout_cert: Option<Arc<TwoChainTimeoutCertificate>>,
     ) -> Self {
         assert_eq!(
@@ -142,6 +144,7 @@ impl BlockTree {
             id_to_quorum_cert,
             pruned_block_ids,
             max_pruned_blocks_in_mem,
+            window_size,
             highest_2chain_timeout_cert,
         }
     }
@@ -245,8 +248,7 @@ impl BlockTree {
             checked_verify_eq!(existing_block.compute_result(), block.compute_result());
             Ok(existing_block)
         } else {
-            // TODO: for now this is just hardcoded for window size 2 (current + 2 parents)
-            let window_size = std::cmp::min(block.round(), 2);
+            let window_size = std::cmp::min(block.round(), self.window_size as u64);
             let mut current_block = &block;
             let mut block_window = vec![];
             for _ in 0..window_size {

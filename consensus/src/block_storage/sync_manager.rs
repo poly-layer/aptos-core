@@ -266,6 +266,7 @@ impl BlockStore {
             self.execution_client.clone(),
             self.payload_manager.clone(),
             self.order_vote_enabled,
+            self.window_size,
         )
         .await?
         .take();
@@ -281,14 +282,8 @@ impl BlockStore {
                 .map(|b| format!("epoch: {}, round: {}, id: {}", b.epoch(), b.round(), b.id()))
                 .collect::<Vec<_>>()
         );
-        self.rebuild(
-            root,
-            root_metadata,
-            blocks,
-            quorum_certs,
-            self.order_vote_enabled,
-        )
-        .await;
+        self.rebuild(root, root_metadata, blocks, quorum_certs)
+            .await;
 
         if highest_commit_cert.ledger_info().ledger_info().ends_epoch() {
             retriever
@@ -310,6 +305,7 @@ impl BlockStore {
         execution_client: Arc<dyn TExecutionClient>,
         payload_manager: Arc<PayloadManager>,
         order_vote_enabled: bool,
+        window_size: usize,
     ) -> anyhow::Result<RecoveryData> {
         info!(
             LogSchema::new(LogEvent::StateSync).remote_peer(retriever.preferred_peer),
@@ -318,11 +314,13 @@ impl BlockStore {
             highest_quorum_cert,
         );
 
-        let highest_commit_cert_round = highest_commit_cert.ledger_info().ledger_info().round();
-        // TODO: window size of 3 (current block + 2), needs to be a config
-        let target_round = highest_commit_cert_round
-            .min(0)
-            .min(highest_quorum_cert.certified_block().round() - 2);
+        let target_round = min(
+            highest_commit_cert.ledger_info().ledger_info().round(),
+            highest_quorum_cert
+                .certified_block()
+                .round()
+                .saturating_sub(window_size as u64),
+        );
 
         // we fetch the blocks from
         let num_blocks = highest_quorum_cert.certified_block().round() - target_round + 1;

@@ -28,7 +28,6 @@ use std::{
 pub struct OrderedBlockWindow {
     blocks: Vec<Block>,
 }
-// TODO: how to create a block window from a BlockStore/BlockTree?
 
 impl OrderedBlockWindow {
     pub fn new(blocks: Vec<Block>) -> Self {
@@ -145,7 +144,7 @@ impl PipelinedBlock {
             self.block.parent_id(),
             self.block.round(),
             self.block.epoch(),
-            block_window.blocks().iter().map(|b| b.id()).collect::<Vec<_>>(),
+            block_window.blocks().iter().map(|b| format!("{}", b.id())).collect::<Vec<_>>(),
         );
 
         self.block_window = block_window;

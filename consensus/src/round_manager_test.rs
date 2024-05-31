@@ -294,6 +294,7 @@ impl NodeSetup {
             10,
             Arc::from(PayloadManager::DirectMempool),
             false,
+            0,
             Arc::new(Mutex::new(PendingBlocks::new())),
         ));
 
