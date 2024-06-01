@@ -538,7 +538,7 @@ impl<
     /// Returns true iff this node enables consensus
     fn is_consensus_enabled(&self) -> bool {
         self.driver_configuration.role == RoleType::Validator
-            || self.driver_configuration.config.observer_enabled
+            || self.driver_configuration.config.consensus_observer_enabled
     }
 
     /// Returns true iff consensus is currently executing

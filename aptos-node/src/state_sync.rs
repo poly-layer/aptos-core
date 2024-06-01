@@ -54,6 +54,7 @@ pub fn create_event_subscription_service(
         ReconfigNotificationListener<DbBackedOnChainConfig>,
         EventNotificationListener,
     )>, // (reconfig_events, jwk_updated_events) for JWK consensus
+    Option<ReconfigNotificationListener<DbBackedOnChainConfig>>,
 ) {
     // Create the event subscription service
     let mut event_subscription_service =
@@ -65,13 +66,26 @@ pub fn create_event_subscription_service(
         .expect("Mempool must subscribe to reconfigurations");
 
     // Create a reconfiguration subscription for consensus (if this is a validator)
-    let consensus_reconfig_subscription = if node_config.base.role.is_validator()
-        || node_config.state_sync.state_sync_driver.observer_enabled
-    {
+    let consensus_reconfig_subscription = if node_config.base.role.is_validator() {
         Some(
             event_subscription_service
                 .subscribe_to_reconfigurations()
                 .expect("Consensus must subscribe to reconfigurations"),
+        )
+    } else {
+        None
+    };
+
+    // Create a reconfiguration subscription for consensus observer (if enabled)
+    let consensus_observer_reconfig_subscription = if node_config
+        .state_sync
+        .state_sync_driver
+        .consensus_observer_enabled
+    {
+        Some(
+            event_subscription_service
+                .subscribe_to_reconfigurations()
+                .expect("Consensus observer must subscribe to reconfigurations"),
         )
     } else {
         None
@@ -107,6 +121,7 @@ pub fn create_event_subscription_service(
         consensus_reconfig_subscription,
         dkg_subscriptions,
         jwk_consensus_subscriptions,
+        consensus_observer_reconfig_subscription,
     )
 }
 

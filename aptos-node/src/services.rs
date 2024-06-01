@@ -120,12 +120,17 @@ pub fn start_consensus_runtime(
     vtxn_pool: VTxnPoolState,
     observer_network_client: Option<NetworkClient<ObserverMessage>>,
 ) -> (Runtime, Arc<StorageWriteProxy>, Arc<QuorumStoreDB>) {
-    let instant = Instant::now();
-    let observer_network_client = if node_config.consensus_observer.publisher_enabled {
+    // Get the reconfiguration subscription and observer network client
+    let observer_network_client = if node_config.consensus_observer.consensus_publisher_enabled {
         observer_network_client
     } else {
         None
     };
+    let reconfig_subscription = consensus_reconfig_subscription
+        .expect("Consensus requires a reconfiguration subscription!");
+
+    // Start consensus
+    let instant = Instant::now();
     let consensus = aptos_consensus::consensus_provider::start_consensus(
         node_config,
         consensus_network_interfaces.network_client,
@@ -133,12 +138,12 @@ pub fn start_consensus_runtime(
         Arc::new(consensus_notifier),
         consensus_to_mempool_sender,
         db_rw,
-        consensus_reconfig_subscription
-            .expect("Consensus requires a reconfiguration subscription!"),
+        reconfig_subscription,
         vtxn_pool,
         observer_network_client,
     );
     debug!("Consensus started in {} ms", instant.elapsed().as_millis());
+
     consensus
 }
 

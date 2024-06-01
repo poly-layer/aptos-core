@@ -98,6 +98,8 @@ pub struct StateSyncDriverConfig {
     pub bootstrapping_mode: BootstrappingMode,
     /// The maximum time taken to process a commit notification
     pub commit_notification_timeout_ms: u64,
+    /// Whether consensus observer mode is enabled
+    pub consensus_observer_enabled: bool,
     /// The mode by which to sync after bootstrapping
     pub continuous_syncing_mode: ContinuousSyncingMode,
     /// Enable auto-bootstrapping if no peers are found after `max_connection_deadline_secs`
@@ -120,8 +122,6 @@ pub struct StateSyncDriverConfig {
     pub max_stream_wait_time_ms: u64,
     /// The version lag we'll tolerate before snapshot syncing
     pub num_versions_to_skip_snapshot_sync: u64,
-    /// Whether consensus observer mode is enabled
-    pub observer_enabled: bool,
 }
 
 /// The default state sync driver config will be the one that gets (and keeps)
@@ -131,6 +131,7 @@ impl Default for StateSyncDriverConfig {
         Self {
             bootstrapping_mode: BootstrappingMode::ExecuteOrApplyFromGenesis,
             commit_notification_timeout_ms: 5000,
+            consensus_observer_enabled: false,
             continuous_syncing_mode: ContinuousSyncingMode::ExecuteTransactionsOrApplyOutputs,
             enable_auto_bootstrapping: false,
             fallback_to_output_syncing_secs: 180, // 3 minutes
@@ -142,7 +143,6 @@ impl Default for StateSyncDriverConfig {
             max_pending_mempool_notifications: 100,
             max_stream_wait_time_ms: 5000,
             num_versions_to_skip_snapshot_sync: 100_000_000, // At 5k TPS, this allows a node to fail for about 6 hours.
-            observer_enabled: false,
         }
     }
 }
@@ -481,8 +481,25 @@ impl ConfigSanitizer for StateSyncDriverConfig {
         if state_sync_driver_config.enable_auto_bootstrapping && fast_sync_enabled {
             return Err(Error::ConfigSanitizerFailed(
                 sanitizer_name,
-                "Auto-bootstrapping should not be enabled for nodes that are fast syncing!"
-                    .to_string(),
+                "Auto-bootstrapping should not be enabled for nodes that are fast syncing!".into(),
+            ));
+        }
+
+        // Verify that the state sync observer flag matches the consensus observer flag
+        if node_config.consensus_observer.consensus_observer_enabled
+            && !state_sync_driver_config.consensus_observer_enabled
+        {
+            return Err(Error::ConfigSanitizerFailed(
+                sanitizer_name,
+                "The observer flag should be enabled if the consensus observer is enabled!".into(),
+            ));
+        } else if !node_config.consensus_observer.consensus_observer_enabled
+            && state_sync_driver_config.consensus_observer_enabled
+        {
+            return Err(Error::ConfigSanitizerFailed(
+                sanitizer_name,
+                "The observer flag should be disabled if the consensus observer is disabled!"
+                    .into(),
             ));
         }
 
@@ -535,6 +552,23 @@ impl ConfigOptimizer for StateSyncDriverConfig {
             }
         }
 
+        // Ensure that the observer flag matches the consensus observer flag
+        if node_config.consensus_observer.consensus_observer_enabled
+            && !state_sync_driver_config.consensus_observer_enabled
+            && local_driver_config_yaml["consensus_observer_enabled"].is_null()
+        {
+            // Enable the state sync observer flag
+            state_sync_driver_config.consensus_observer_enabled = true;
+            modified_config = true;
+        } else if !node_config.consensus_observer.consensus_observer_enabled
+            && state_sync_driver_config.consensus_observer_enabled
+            && local_driver_config_yaml["consensus_observer_enabled"].is_null()
+        {
+            // Disable the state sync observer flag
+            state_sync_driver_config.consensus_observer_enabled = false;
+            modified_config = true;
+        }
+
         Ok(modified_config)
     }
 }
@@ -573,6 +607,7 @@ impl ConfigOptimizer for DataStreamingServiceConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::consensus_observer_config::ConsensusObserverConfig;
 
     #[test]
     fn test_optimize_bootstrapping_mode_devnet_vfn() {
@@ -666,6 +701,162 @@ mod tests {
             node_config.state_sync.state_sync_driver.bootstrapping_mode,
             BootstrappingMode::ExecuteTransactionsFromGenesis
         );
+    }
+
+    #[test]
+    fn test_optimize_consensus_observer_enabled() {
+        // Create a node config with the consensus observer
+        // enabled and the state sync observer disabled.
+        let mut node_config = NodeConfig {
+            consensus_observer: ConsensusObserverConfig {
+                consensus_observer_enabled: true,
+                ..Default::default()
+            },
+            state_sync: StateSyncConfig {
+                state_sync_driver: StateSyncDriverConfig {
+                    consensus_observer_enabled: false,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Optimize the config and verify modifications are made
+        let modified_config = StateSyncConfig::optimize(
+            &mut node_config,
+            &serde_yaml::from_str("{}").unwrap(), // An empty local config,
+            NodeType::Validator,
+            Some(ChainId::testnet()),
+        )
+        .unwrap();
+        assert!(modified_config);
+
+        // Verify that the observer flag is now enabled
+        let state_sync_driver_config = node_config.state_sync.state_sync_driver;
+        assert!(state_sync_driver_config.consensus_observer_enabled);
+    }
+
+    #[test]
+    fn test_optimize_consensus_observer_enabled_no_override() {
+        // Create a node config with the consensus observer
+        // enabled and the state sync observer disabled.
+        let mut node_config = NodeConfig {
+            consensus_observer: ConsensusObserverConfig {
+                consensus_observer_enabled: true,
+                ..Default::default()
+            },
+            state_sync: StateSyncConfig {
+                state_sync_driver: StateSyncDriverConfig {
+                    consensus_observer_enabled: false,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Create a local config YAML with the state sync observer flag disabled
+        let local_config_yaml = serde_yaml::from_str(
+            r#"
+            state_sync:
+                state_sync_driver:
+                    consensus_observer_enabled: false
+            "#,
+        )
+        .unwrap();
+
+        // Optimize the config and verify no modifications are made
+        let modified_config = StateSyncConfig::optimize(
+            &mut node_config,
+            &local_config_yaml,
+            NodeType::PublicFullnode,
+            Some(ChainId::test()),
+        )
+        .unwrap();
+        assert!(!modified_config);
+
+        // Verify that the observer flag is still disabled
+        let state_sync_driver_config = node_config.state_sync.state_sync_driver;
+        assert!(!state_sync_driver_config.consensus_observer_enabled);
+    }
+
+    #[test]
+    fn test_optimize_consensus_observer_disabled() {
+        // Create a node config with the consensus observer
+        // disabled and the state sync observer enabled.
+        let mut node_config = NodeConfig {
+            consensus_observer: ConsensusObserverConfig {
+                consensus_observer_enabled: false,
+                ..Default::default()
+            },
+            state_sync: StateSyncConfig {
+                state_sync_driver: StateSyncDriverConfig {
+                    consensus_observer_enabled: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Optimize the config and verify modifications are made
+        let modified_config = StateSyncConfig::optimize(
+            &mut node_config,
+            &serde_yaml::from_str("{}").unwrap(), // An empty local config,
+            NodeType::Validator,
+            Some(ChainId::testnet()),
+        )
+        .unwrap();
+        assert!(modified_config);
+
+        // Verify that the observer flag is now disabled
+        let state_sync_driver_config = node_config.state_sync.state_sync_driver;
+        assert!(!state_sync_driver_config.consensus_observer_enabled);
+    }
+
+    #[test]
+    fn test_optimize_consensus_observer_disabled_no_override() {
+        // Create a node config with the consensus observer
+        // disabled and the state sync observer enabled.
+        let mut node_config = NodeConfig {
+            consensus_observer: ConsensusObserverConfig {
+                consensus_observer_enabled: false,
+                ..Default::default()
+            },
+            state_sync: StateSyncConfig {
+                state_sync_driver: StateSyncDriverConfig {
+                    consensus_observer_enabled: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Create a local config YAML with the state sync observer flag enabled
+        let local_config_yaml = serde_yaml::from_str(
+            r#"
+            state_sync:
+                state_sync_driver:
+                    consensus_observer_enabled: true
+            "#,
+        )
+        .unwrap();
+
+        // Optimize the config and verify no modifications are made
+        let modified_config = StateSyncConfig::optimize(
+            &mut node_config,
+            &local_config_yaml,
+            NodeType::PublicFullnode,
+            Some(ChainId::test()),
+        )
+        .unwrap();
+        assert!(!modified_config);
+
+        // Verify that the observer flag is still enabled
+        let state_sync_driver_config = node_config.state_sync.state_sync_driver;
+        assert!(state_sync_driver_config.consensus_observer_enabled);
     }
 
     #[test]
@@ -777,6 +968,56 @@ mod tests {
                 state_sync_driver: StateSyncDriverConfig {
                     bootstrapping_mode: BootstrappingMode::DownloadLatestStates,
                     enable_auto_bootstrapping: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Verify that sanitization fails
+        let error =
+            StateSyncConfig::sanitize(&node_config, NodeType::Validator, Some(ChainId::testnet()))
+                .unwrap_err();
+        assert!(matches!(error, Error::ConfigSanitizerFailed(_, _)));
+    }
+
+    #[test]
+    fn test_sanitize_consensus_observer_enabled() {
+        // Create a node config with the observer disabled, but consensus observer enabled
+        let node_config = NodeConfig {
+            consensus_observer: ConsensusObserverConfig {
+                consensus_observer_enabled: true,
+                ..Default::default()
+            },
+            state_sync: StateSyncConfig {
+                state_sync_driver: StateSyncDriverConfig {
+                    consensus_observer_enabled: false,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Verify that sanitization fails
+        let error =
+            StateSyncConfig::sanitize(&node_config, NodeType::Validator, Some(ChainId::testnet()))
+                .unwrap_err();
+        assert!(matches!(error, Error::ConfigSanitizerFailed(_, _)));
+    }
+
+    #[test]
+    fn test_sanitize_consensus_observer_disabled() {
+        // Create a node config with the observer enabled, but consensus observer disabled
+        let node_config = NodeConfig {
+            consensus_observer: ConsensusObserverConfig {
+                consensus_observer_enabled: false,
+                ..Default::default()
+            },
+            state_sync: StateSyncConfig {
+                state_sync_driver: StateSyncDriverConfig {
+                    consensus_observer_enabled: true,
                     ..Default::default()
                 },
                 ..Default::default()
