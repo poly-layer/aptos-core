@@ -10,9 +10,7 @@ use aptos_logger::{enabled, Level};
 use aptos_mvhashmap::types::TxnIndex;
 use aptos_types::{
     state_store::StateView,
-    transaction::{
-        signature_verified_transaction::SignatureVerifiedTransaction, Transaction, WriteSetPayload,
-    },
+    transaction::signature_verified_transaction::SignatureVerifiedTransaction,
 };
 use aptos_vm_logging::{log_schema::AdapterLogSchema, prelude::*};
 use aptos_vm_types::resolver::{ExecutorView, ResourceGroupView};
@@ -71,6 +69,7 @@ impl<'a, S: 'a + StateView + Sync> ExecutorTask for AptosExecutorTask<'a, S> {
                         format!("Transaction discarded, status: {:?}", vm_status),
                     );
                 }
+
                 if vm_status.status_code() == StatusCode::SPECULATIVE_EXECUTION_ABORT_ERROR {
                     ExecutionStatus::SpeculativeExecutionAbortError(
                         vm_status.message().cloned().unwrap_or_default(),
@@ -88,10 +87,6 @@ impl<'a, S: 'a + StateView + Sync> ExecutorTask for AptosExecutorTask<'a, S> {
                     );
                     ExecutionStatus::SkipRest(AptosTransactionOutput::new(vm_output))
                 } else {
-                    assert!(
-                        Self::is_transaction_dynamic_change_set_capable(txn),
-                        "DirectWriteSet should always create SkipRest transaction, validate_waypoint_change_set provides this guarantee"
-                    );
                     ExecutionStatus::Success(AptosTransactionOutput::new(vm_output))
                 }
             },
@@ -113,17 +108,5 @@ impl<'a, S: 'a + StateView + Sync> ExecutorTask for AptosExecutorTask<'a, S> {
                 }
             },
         }
-    }
-
-    fn is_transaction_dynamic_change_set_capable(txn: &Self::Txn) -> bool {
-        if txn.is_valid() {
-            if let Transaction::GenesisTransaction(WriteSetPayload::Direct(_)) = txn.expect_valid()
-            {
-                // WriteSetPayload::Direct cannot be handled in mode where delayed_field_optimization or
-                // resource_groups_split_in_change_set is enabled.
-                return false;
-            }
-        }
-        true
     }
 }
