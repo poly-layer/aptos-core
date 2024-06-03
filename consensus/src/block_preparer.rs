@@ -51,6 +51,7 @@ impl BlockPreparer {
                 .collect::<Vec<_>>()
         );
 
+        // TODO: do the get_transactions in parallel
         let mut txns = vec![];
         for block in block_window.blocks() {
             let (block_txns, _) = self.payload_manager.get_transactions(block).await?;

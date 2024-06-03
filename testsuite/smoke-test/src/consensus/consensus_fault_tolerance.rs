@@ -159,6 +159,7 @@ async fn run_fail_point_test(
     .unwrap();
 }
 
+// TODO: find out why this fails
 #[tokio::test]
 async fn test_no_failures() {
     let num_validators = 3;
