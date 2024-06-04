@@ -28,7 +28,7 @@ use aptos_types::{
         TransactionOutput,
     },
 };
-use aptos_vm_logging::disable_speculative_logging;
+use aptos_vm_logging::{disable_speculative_logging, speculative_info};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use futures::{channel::oneshot, executor::block_on};
 use move_core_types::vm_status::VMStatus;
@@ -86,7 +86,7 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
         stream_result_tx: Sender<TransactionIdxAndOutput>,
     ) -> Result<Vec<TransactionOutput>, VMStatus> {
         disable_speculative_logging();
-        trace!(
+        info!(
             "executing sub block for shard {} and round {}",
             self.shard_id,
             round
@@ -154,7 +154,7 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
                 )
                 .map(BlockOutput::into_transaction_outputs_forced);
                 if let Some(shard_id) = shard_id {
-                    trace!(
+                    info!(
                         "executed sub block for shard {} and round {}",
                         shard_id,
                         round
@@ -298,7 +298,7 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
             let (stream_results_tx, stream_results_rx) = unbounded();
             let coordinator_client_clone = self.coordinator_client.clone();
             let stream_results_thread = thread::spawn(move || {
-                let batch_size = 200;
+                let batch_size = 1000;
                 let mut curr_batch = vec![];
                 loop {
                     let txn_idx_output: TransactionIdxAndOutput = stream_results_rx.recv().unwrap();
@@ -316,11 +316,17 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
                 }
             });
 
-            trace!(
+            // trace!(
+            //         "Shard {} received ExecuteBlock command of block size {} ",
+            //         self.shard_id,
+            //         num_txns_in_the_block
+            //     );
+            info!(
                     "Shard {} received ExecuteBlock command of block size {} ",
                     self.shard_id,
                     num_txns_in_the_block
                 );
+
             let exe_timer = SHARDED_EXECUTOR_SERVICE_SECONDS
                 .with_label_values(&[&self.shard_id.to_string(), "execute_block"])
                 .start_timer();
