@@ -250,8 +250,8 @@ impl OnChainConsensusConfig {
     // TODO: actually add to onchain config
     pub fn window_size(&self) -> usize {
         match &self {
-            OnChainConsensusConfig::V1(_) => 0,
-            OnChainConsensusConfig::V2(_) => 0,
+            OnChainConsensusConfig::V1(_) => 1,
+            OnChainConsensusConfig::V2(_) => 1,
             OnChainConsensusConfig::V3 { .. } => 5,
         }
     }

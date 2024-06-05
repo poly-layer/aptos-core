@@ -198,6 +198,14 @@ impl PipelinedBlock {
     }
 
     pub fn new_ordered(block: Block) -> Self {
+        info!(
+            "New Ordered PipelinedBlock with block_id: {}, parent_id: {}, round: {}, epoch: {}, txns: {}",
+            block.id(),
+            block.parent_id(),
+            block.round(),
+            block.epoch(),
+            block.payload().map_or(0, |p| p.len())
+        );
         Self {
             block,
             block_window: OrderedBlockWindow::new(vec![]),

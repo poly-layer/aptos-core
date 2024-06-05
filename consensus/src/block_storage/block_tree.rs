@@ -248,10 +248,20 @@ impl BlockTree {
             checked_verify_eq!(existing_block.compute_result(), block.compute_result());
             Ok(existing_block)
         } else {
-            let window_size = std::cmp::min(block.round(), self.window_size as u64);
+            let window_size = std::cmp::min(block.round() + 1, self.window_size as u64);
+            assert!(window_size > 0, "window_size must be greater than 0");
             let mut current_block = &block;
             let mut block_window = vec![];
-            for _ in 0..window_size {
+            let mut reached_root = false;
+            for _ in 1..window_size {
+                if current_block.parent_id() == HashValue::zero() {
+                    reached_root = true;
+                }
+                info!(
+                    "current_block: {}, parent_block: {}",
+                    current_block.id(),
+                    current_block.parent_id()
+                );
                 current_block = match self.get_linkable_block(&current_block.parent_id()) {
                     Some(parent_block) => {
                         block_window.push(parent_block.executed_block().block().clone());
@@ -261,12 +271,13 @@ impl BlockTree {
                 };
             }
             ensure!(
-                block_window.len() as u64 == window_size,
-                "Block window is not complete. block_window.len: {}, window_size: {}, epoch: {}, round: {}",
+                block_window.len() as u64 == window_size - 1 || reached_root,
+                "Block window is not complete. block_window.len: {}, window_size: {}, epoch: {}, round: {}, window: {:?}",
                 block_window.len(),
                 window_size,
                 block.epoch(),
                 block.round(),
+                block_window.iter().map(|b| format!("{}", b.id())).collect::<Vec<_>>(),
             );
 
             match self.get_linkable_block_mut(&block.parent_id()) {
