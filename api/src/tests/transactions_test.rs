@@ -1536,10 +1536,7 @@ async fn test_simulation_failure_with_detail_error() {
         .expect_status_code(200)
         .post_bcs_txn("/transactions/simulate", body)
         .await;
-    assert!(resp.as_array().unwrap()[0]["vm_status"]
-        .as_str()
-        .unwrap()
-        .contains("LINKER_ERROR"));
+    context.check_golden_output(resp);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

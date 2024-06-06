@@ -28,16 +28,13 @@ use aptos_api_types::{
     TransactionsBatchSubmissionResult, UserTransaction, VerifyInput, VerifyInputWithRecursion,
     MAX_RECURSIVE_TYPES_ALLOWED, U64,
 };
+use aptos_types::transaction::TransactionStatus;
 use aptos_crypto::{hash::CryptoHash, signing_message};
 use aptos_types::{
-    account_address::AccountAddress,
-    mempool_status::MempoolStatusCode,
-    transaction::{
+    account_address::AccountAddress, mempool_status::MempoolStatusCode, on_chain_config::{FeatureFlag, Features}, transaction::{
         EntryFunction, ExecutionStatus, MultisigTransactionPayload, RawTransaction,
         RawTransactionWithData, SignedTransaction, TransactionPayload,
-    },
-    vm_status::StatusCode,
-    APTOS_COIN_TYPE,
+    }, vm_status::StatusCode, APTOS_COIN_TYPE
 };
 use aptos_vm::{AptosSimulationVM, AptosVM};
 use move_core_types::{ident_str, language_storage::ModuleId, vm_status::VMStatus};
@@ -1376,7 +1373,16 @@ impl TransactionsApi {
         let version = ledger_info.version();
 
         // Ensure that all known statuses return their values in the output (even if they aren't supposed to)
-        let exe_status = ExecutionStatus::convert_vm_status_for_simulation(vm_status.clone());
+        let default_on_features = Features::default();
+        let exe_status = if default_on_features.is_enabled(FeatureFlag::REMOVE_DETAILED_ERROR_FROM_HASH){
+            ExecutionStatus::convert_vm_status_for_simulation(vm_status.clone())
+        } else {
+            match output.status().clone() {
+                TransactionStatus::Keep(exec_status) => exec_status,
+                TransactionStatus::Discard(status) => ExecutionStatus::MiscellaneousError(Some(status)),
+                _ => ExecutionStatus::MiscellaneousError(None),
+            }
+        };
 
         let stats_key = match txn.payload() {
             TransactionPayload::Script(_) => {
