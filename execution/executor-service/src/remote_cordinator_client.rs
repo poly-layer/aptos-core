@@ -138,18 +138,18 @@ impl RemoteCoordinatorClient {
                     let is_block_init_done_clone = is_block_init_done.clone();
                     let cmd_rx_thread_pool_clone = cmd_rx_thread_pool.clone();
 
-                    let delta = get_delta_time(message.start_ms_since_epoch.unwrap());
-                    REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                        .with_label_values(&["5_cmd_tx_msg_shard_recv"]).observe(delta as f64);
-                    cmd_rx_msg_duration_since_epoch_clone.store(message.start_ms_since_epoch.unwrap(), std::sync::atomic::Ordering::Relaxed);
-                    let _rx_timer = REMOTE_EXECUTOR_TIMER
-                        .with_label_values(&[&shard_id.to_string(), "cmd_rx"])
-                        .start_timer();
-                    let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-                        .with_label_values(&[&shard_id.to_string(), "cmd_rx_bcs_deser"])
-                        .start_timer();
+                    // let delta = get_delta_time(message.start_ms_since_epoch.unwrap());
+                    // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+                    //     .with_label_values(&["5_cmd_tx_msg_shard_recv"]).observe(delta as f64);
+                    // cmd_rx_msg_duration_since_epoch_clone.store(message.start_ms_since_epoch.unwrap(), std::sync::atomic::Ordering::Relaxed);
+                    // let _rx_timer = REMOTE_EXECUTOR_TIMER
+                    //     .with_label_values(&[&shard_id.to_string(), "cmd_rx"])
+                    //     .start_timer();
+                    // let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+                    //     .with_label_values(&[&shard_id.to_string(), "cmd_rx_bcs_deser"])
+                    //     .start_timer();
                     let txns: CmdsAndMetaData = bcs::from_bytes(&message.data).unwrap();
-                    drop(bcs_deser_timer);
+                    // drop(bcs_deser_timer);
 
                     let transactions = txns.cmds;
                     num_txns_processed += transactions.len();
@@ -159,9 +159,9 @@ impl RemoteCoordinatorClient {
                         break_out = true;
                     }
 
-                    let init_prefetch_timer = REMOTE_EXECUTOR_TIMER
-                        .with_label_values(&[&shard_id.to_string(), "init_prefetch"])
-                        .start_timer();
+                    // let init_prefetch_timer = REMOTE_EXECUTOR_TIMER
+                    //     .with_label_values(&[&shard_id.to_string(), "init_prefetch"])
+                    //     .start_timer();
                     cmd_rx_thread_pool_clone.spawn(move || {
 
 
@@ -185,28 +185,28 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
     fn receive_execute_command(&self) -> ExecutorShardCommand<RemoteStateViewClient> {
         match self.command_rx.recv() {
             Ok(message) => {
-                let delta = get_delta_time(message.start_ms_since_epoch.unwrap());
-                REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                    .with_label_values(&["5_cmd_tx_msg_shard_recv"]).observe(delta as f64);
-                self.cmd_rx_msg_duration_since_epoch.store(message.start_ms_since_epoch.unwrap(), std::sync::atomic::Ordering::Relaxed);
-                let _rx_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&[&self.shard_id.to_string(), "cmd_rx"])
-                    .start_timer();
-                let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&[&self.shard_id.to_string(), "cmd_rx_bcs_deser"])
-                    .start_timer();
+                // let delta = get_delta_time(message.start_ms_since_epoch.unwrap());
+                // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+                //     .with_label_values(&["5_cmd_tx_msg_shard_recv"]).observe(delta as f64);
+                // self.cmd_rx_msg_duration_since_epoch.store(message.start_ms_since_epoch.unwrap(), std::sync::atomic::Ordering::Relaxed);
+                // let _rx_timer = REMOTE_EXECUTOR_TIMER
+                //     .with_label_values(&[&self.shard_id.to_string(), "cmd_rx"])
+                //     .start_timer();
+                // let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+                //     .with_label_values(&[&self.shard_id.to_string(), "cmd_rx_bcs_deser"])
+                //     .start_timer();
                 let request: RemoteExecutionRequest = bcs::from_bytes(&message.data).unwrap();
-                drop(bcs_deser_timer);
+                // drop(bcs_deser_timer);
 
                 match request {
                     RemoteExecutionRequest::ExecuteBlock(command) => {
-                        let init_prefetch_timer = REMOTE_EXECUTOR_TIMER
-                            .with_label_values(&[&self.shard_id.to_string(), "init_prefetch"])
-                            .start_timer();
+                        // let init_prefetch_timer = REMOTE_EXECUTOR_TIMER
+                        //     .with_label_values(&[&self.shard_id.to_string(), "init_prefetch"])
+                        //     .start_timer();
                         let state_keys = Self::extract_state_keys(&command);
                         self.state_view_client.init_for_block();
                         self.state_view_client.pre_fetch_state_values(state_keys, false);
-                        drop(init_prefetch_timer);
+                        // drop(init_prefetch_timer);
 
                         let (sub_blocks, concurrency, onchain_config) = command.into();
                         ExecutorShardCommand::ExecuteSubBlocks(
@@ -225,23 +225,23 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
     fn receive_execute_command_stream(&self) -> StreamedExecutorShardCommand<RemoteStateViewClient> {
         match self.command_rx.recv() {
             Ok(message) => {
-                let delta = get_delta_time(message.start_ms_since_epoch.unwrap());
-                REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                    .with_label_values(&["5_cmd_tx_msg_shard_recv"]).observe(delta as f64);
-                self.cmd_rx_msg_duration_since_epoch.store(message.start_ms_since_epoch.unwrap(), std::sync::atomic::Ordering::Relaxed);
-                let _rx_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&[&self.shard_id.to_string(), "cmd_rx"])
-                    .start_timer();
-                let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&[&self.shard_id.to_string(), "cmd_rx_bcs_deser"])
-                    .start_timer();
+                // let delta = get_delta_time(message.start_ms_since_epoch.unwrap());
+                // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+                //     .with_label_values(&["5_cmd_tx_msg_shard_recv"]).observe(delta as f64);
+                // self.cmd_rx_msg_duration_since_epoch.store(message.start_ms_since_epoch.unwrap(), std::sync::atomic::Ordering::Relaxed);
+                // let _rx_timer = REMOTE_EXECUTOR_TIMER
+                //     .with_label_values(&[&self.shard_id.to_string(), "cmd_rx"])
+                //     .start_timer();
+                // let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+                //     .with_label_values(&[&self.shard_id.to_string(), "cmd_rx_bcs_deser"])
+                //     .start_timer();
                 let txns: CmdsAndMetaData = bcs::from_bytes(&message.data).unwrap();
-                drop(bcs_deser_timer);
+                // drop(bcs_deser_timer);
 
 
-                let init_prefetch_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&[&self.shard_id.to_string(), "init_prefetch"])
-                    .start_timer();
+                // let init_prefetch_timer = REMOTE_EXECUTOR_TIMER
+                //     .with_label_values(&[&self.shard_id.to_string(), "init_prefetch"])
+                //     .start_timer();
 
                 self.state_view_client.init_for_block();
                 let state_keys = Self::extract_state_keys_from_txns(&txns.cmds);
@@ -294,14 +294,14 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
         let execute_result_type = format!("execute_result_{}", self.shard_id);
         let duration_since_epoch = self.cmd_rx_msg_duration_since_epoch.load(std::sync::atomic::Ordering::Relaxed);
         let remote_execution_result = RemoteExecutionResult::new(result);
-        let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&[&self.shard_id.to_string(), "result_tx_bcs_ser"])
-            .start_timer();
+        // let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&[&self.shard_id.to_string(), "result_tx_bcs_ser"])
+        //     .start_timer();
         let output_message = bcs::to_bytes(&remote_execution_result).unwrap();
-        drop(bcs_ser_timer);
-        let delta = get_delta_time(duration_since_epoch);
-        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-            .with_label_values(&["6_results_tx_msg_shard_send"]).observe(delta as f64);
+        // drop(bcs_ser_timer);
+        // let delta = get_delta_time(duration_since_epoch);
+        // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //     .with_label_values(&["6_results_tx_msg_shard_send"]).observe(delta as f64);
         self.result_tx.send(Message::create_with_metadata(output_message, duration_since_epoch, 0, 0), &MessageType::new(execute_result_type));
     }
 
@@ -313,9 +313,9 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
     }
 
     fn record_execution_complete_time_on_shard(&self) {
-        let duration_since_epoch = self.cmd_rx_msg_duration_since_epoch.load(std::sync::atomic::Ordering::Relaxed);
-        let delta = get_delta_time(duration_since_epoch);
-        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-            .with_label_values(&["6_exe_complete_on_shard"]).observe(delta as f64);
+        // let duration_since_epoch = self.cmd_rx_msg_duration_since_epoch.load(std::sync::atomic::Ordering::Relaxed);
+        // let delta = get_delta_time(duration_since_epoch);
+        // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //     .with_label_values(&["6_exe_complete_on_shard"]).observe(delta as f64);
     }
 }
