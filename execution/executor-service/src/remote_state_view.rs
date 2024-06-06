@@ -206,8 +206,8 @@ impl RemoteStateViewClient {
         if curr_time > duration_since_epoch {
             delta = (curr_time - duration_since_epoch) as f64;
         }
-        REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
-            .with_label_values(&["0_kv_req_grpc_shard_send_1_lock_acquired"]).observe(delta);
+        // REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
+        //     .with_label_values(&["0_kv_req_grpc_shard_send_1_lock_acquired"]).observe(delta);
         sender_lk.send(Message::create_with_metadata(request_message, duration_since_epoch, seq_num, shard_id as u64),
                        &MessageType::new(REMOTE_KV_REQUEST_MSG_TYPE.to_string()));
     }
@@ -217,18 +217,18 @@ impl TStateView for RemoteStateViewClient {
     type Key = StateKey;
 
     fn get_state_value(&self, state_key: &StateKey) -> Result<Option<StateValue>> {
-        let _timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&[&self.shard_id.to_string(), "get_state_value"])
-            .start_timer();
+        // let _timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&[&self.shard_id.to_string(), "get_state_value"])
+        //     .start_timer();
         let state_view_reader = self.state_view.read().unwrap();
         if state_view_reader.has_state_key(state_key) {
             // If the key is already in the cache then we return it.
             return state_view_reader.get_state_value(state_key);
         }
         // If the value is not already in the cache then we pre-fetch it and wait for it to arrive.
-        REMOTE_EXECUTOR_REMOTE_KV_COUNT
-            .with_label_values(&[&self.shard_id.to_string(), "non_prefetch_kv"])
-            .inc();
+        // REMOTE_EXECUTOR_REMOTE_KV_COUNT
+        //     .with_label_values(&[&self.shard_id.to_string(), "non_prefetch_kv"])
+        //     .inc();
         self.pre_fetch_state_values(vec![state_key.clone()], true);
         state_view_reader.get_state_value(state_key)
     }
@@ -275,33 +275,33 @@ impl RemoteStateValueReceiver {
         message: Message,
         state_view: Arc<RwLock<RemoteStateView>>,
     ) {
-        let start_ms_since_epoch = message.start_ms_since_epoch.unwrap();
-        {
-            let curr_time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
-            let mut delta = 0.0;
-            if curr_time > start_ms_since_epoch {
-                delta = (curr_time - start_ms_since_epoch) as f64;
-            }
-            REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
-                .with_label_values(&["7_kv_resp_shard_handler_st"])
-                .observe(delta);
-        }
+        // let start_ms_since_epoch = message.start_ms_since_epoch.unwrap();
+        // {
+        //     let curr_time = SystemTime::now()
+        //         .duration_since(SystemTime::UNIX_EPOCH)
+        //         .unwrap()
+        //         .as_millis() as u64;
+        //     let mut delta = 0.0;
+        //     if curr_time > start_ms_since_epoch {
+        //         delta = (curr_time - start_ms_since_epoch) as f64;
+        //     }
+        //     REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
+        //         .with_label_values(&["7_kv_resp_shard_handler_st"])
+        //         .observe(delta);
+        // }
 
-        let _timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&[&shard_id.to_string(), "kv_responses"])
-            .start_timer();
-        let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&[&shard_id.to_string(), "kv_resp_deser"])
-            .start_timer();
+        // let _timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&[&shard_id.to_string(), "kv_responses"])
+        //     .start_timer();
+        // let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&[&shard_id.to_string(), "kv_resp_deser"])
+        //     .start_timer();
         let response: RemoteKVResponse = bcs::from_bytes(&message.data).unwrap();
-        drop(bcs_deser_timer);
+        // drop(bcs_deser_timer);
 
-        REMOTE_EXECUTOR_REMOTE_KV_COUNT
-            .with_label_values(&[&shard_id.to_string(), "kv_responses"])
-            .inc();
+        // REMOTE_EXECUTOR_REMOTE_KV_COUNT
+        //     .with_label_values(&[&shard_id.to_string(), "kv_responses"])
+        //     .inc();
         let state_view_lock = state_view.read().unwrap();
         trace!(
             "Received state values for shard {} with size {}",
@@ -315,18 +315,18 @@ impl RemoteStateValueReceiver {
                 state_view_lock.set_state_value(&state_key, state_value);
             });
 
-        {
-            let curr_time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
-            let mut delta = 0.0;
-            if curr_time > start_ms_since_epoch {
-                delta = (curr_time - start_ms_since_epoch) as f64;
-            }
-            REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
-                .with_label_values(&["8_kv_resp_shard_handler_end"])
-                .observe(delta);
-        }
+        // {
+        //     let curr_time = SystemTime::now()
+        //         .duration_since(SystemTime::UNIX_EPOCH)
+        //         .unwrap()
+        //         .as_millis() as u64;
+        //     let mut delta = 0.0;
+        //     if curr_time > start_ms_since_epoch {
+        //         delta = (curr_time - start_ms_since_epoch) as f64;
+        //     }
+        //     REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
+        //         .with_label_values(&["8_kv_resp_shard_handler_end"])
+        //         .observe(delta);
+        // }
     }
 }
