@@ -307,7 +307,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         // NOTE: Can play with different batch size / streaming eventually?
         let batch_size = 200;
 
-        // NOTE: Can be done in parallel? maybe but shard_id < 16
+        // NOTE: It is done in parallel.
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
             // TODO: Check if the function can get Arc<BlockExecutorConfigFromOnchain> instead.
