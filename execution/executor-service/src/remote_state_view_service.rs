@@ -190,7 +190,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         //     .with_label_values(&["0", "kv_requests_2"])
         //     .start_timer();
         let (shard_id, state_keys) = req.into();
-        info!(
+        trace!(
             "remote state view service - received request for shard {} with {} keys",
             shard_id,
             state_keys.len()
@@ -220,7 +220,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         //     .start_timer();
         let resp_serialized = bcs::to_bytes(&resp).unwrap();
         // drop(bcs_ser_timer);
-        info!(
+        trace!(
             "remote state view service - sending response for shard {} with {} keys",
             shard_id,
             len
@@ -229,7 +229,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
 
         DEFAULT_DROPPER.schedule_drop(resp);
         DEFAULT_DROPPER.schedule_drop(message);
-        info!("Processing message with seq_num: {}", seq_num);
+        trace!("Processing message with seq_num: {}", seq_num);
         let resp_message = Message::create_with_metadata(resp_serialized, start_ms_since_epoch, seq_num, shard_id as u64);
         // drop(timer_3);
 

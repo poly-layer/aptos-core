@@ -228,36 +228,37 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
 
     fn get_streamed_output_from_shards(&self, expected_outputs: Vec<u64>, duration_since_epoch: u64) -> Result<Vec<TransactionOutput>, VMStatus> {
         //info!("expected outputs {:?} ", expected_outputs);
+        // NOTE: why collecting results isn't parallel?
         let results: Vec<Vec<TransactionIdxAndOutput>> = (0..self.num_shards()).into_par_iter().map(|shard_id| {
             let mut num_outputs_received: u64 = 0;
             let mut outputs = vec![];
             loop {
                 let received_msg = self.result_rxs[shard_id].recv().unwrap();
-                let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&["0", "result_rx_bcs_deser"])
-                    .start_timer();
+                // let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+                //     .with_label_values(&["0", "result_rx_bcs_deser"])
+                //     .start_timer();
                 let result: Vec<TransactionIdxAndOutput> = bcs::from_bytes(&received_msg.to_bytes()).unwrap();
-                drop(bcs_deser_timer);
+                // drop(bcs_deser_timer);
                 num_outputs_received += result.len() as u64;
                 //info!("Streamed output from shard {}; txn_id {}", shard_id, result.txn_idx);
                 outputs.extend(result);
                 if num_outputs_received == expected_outputs[shard_id] {
-                    let delta = get_delta_time(duration_since_epoch);
-                    REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                        .with_label_values(&["9_1_results_tx_msg_remote_exe_recv"]).observe(delta as f64);
+                    // let delta = get_delta_time(duration_since_epoch);
+                    // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+                    //     .with_label_values(&["9_1_results_tx_msg_remote_exe_recv"]).observe(delta as f64);
                     break;
                 }
             }
             outputs
         }).collect();
 
-        let delta = get_delta_time(duration_since_epoch);
-        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-            .with_label_values(&["9_2_results_rx_all_shards"]).observe(delta as f64);
+        // let delta = get_delta_time(duration_since_epoch);
+        // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //     .with_label_values(&["9_2_results_rx_all_shards"]).observe(delta as f64);
 
-        let _timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "result_rx_gather"])
-            .start_timer();
+        // let _timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "result_rx_gather"])
+        //     .start_timer();
         let mut aggregated_results: Vec<TransactionOutput> = vec![Default::default() ; expected_outputs.iter().sum::<u64>() as usize];
         results.into_iter().for_each(|result| {
             result.into_iter().for_each(|txn_output| {
@@ -286,23 +287,27 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         onchain_config: BlockExecutorConfigFromOnchain,
         duration_since_epoch: u64
     ) -> Result<Vec<TransactionOutput>, VMStatus> {
-        trace!("RemoteExecutorClient Sending block to shards");
+        // trace => info
+        info!("RemoteExecutorClient Sending block to {} shards", self.num_shards());
         self.state_view_service.set_state_view(state_view);
         let (sub_blocks, global_txns) = transactions.get_ref();
         if !global_txns.is_empty() {
             panic!("Global transactions are not supported yet");
         }
 
-        let cmd_tx_timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "cmd_tx_async"])
-            .start_timer();
+        // let cmd_tx_timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "cmd_tx_async"])
+        //     .start_timer();
 
 
-        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-            .with_label_values(&["0_cmd_tx_start"]).observe(get_delta_time(duration_since_epoch) as f64);
+        // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //     .with_label_values(&["0_cmd_tx_start"]).observe(get_delta_time(duration_since_epoch) as f64);
 
         let mut expected_outputs = vec![0; self.num_shards()];
+        // NOTE: Can play with different batch size / streaming eventually?
         let batch_size = 200;
+
+        // NOTE: Can be done in parallel? maybe but shard_id < 16
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
             // TODO: Check if the function can get Arc<BlockExecutorConfigFromOnchain> instead.
@@ -313,7 +318,8 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                 let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
                 let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
                 let num_txns = shard_txns.len();
-
+                // new info
+                info!("RemoteExecutorClient Sending sub_block of {} txn to {} shard", num_txns, shard_id);
                 let _ = shard_txns
                     .chunks(batch_size)
                     .enumerate()
@@ -328,13 +334,13 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                             onchain_config: &onchain_config_clone,
                             batch_start_index: chunk_idx * batch_size,
                         };
-                        let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-                            .with_label_values(&["0", "cmd_tx_bcs_ser"])
-                            .start_timer();
+                        // let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+                        //     .with_label_values(&["0", "cmd_tx_bcs_ser"])
+                        //     .start_timer();
                         let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
-                        drop(bcs_ser_timer);
-                        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                            .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
+                        // drop(bcs_ser_timer);
+                        // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+                        //     .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
                         let execute_command_type = format!("execute_command_{}", shard_id);
                         let mut rng = StdRng::from_entropy();
                         let rand_send_thread_idx = rng.gen_range(0, senders[shard_id].len());
@@ -429,19 +435,19 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
             });
         }
 
-        drop(cmd_tx_timer);
+        // drop(cmd_tx_timer);
 
         //let execution_results = self.get_output_from_shards()?;
 
         let results = self.get_streamed_output_from_shards(expected_outputs, duration_since_epoch);
 
-        let timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "drop_state_view_finally"])
-            .start_timer();
-        self.state_view_service.drop_state_view();
-        drop(timer);
-        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-            .with_label_values(&["9_8_execute_remote_block_done"]).observe(get_delta_time(duration_since_epoch) as f64);
+        // let timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "drop_state_view_finally"])
+        //     .start_timer();
+        // self.state_view_service.drop_state_view();
+        // drop(timer);
+        // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //     .with_label_values(&["9_8_execute_remote_block_done"]).observe(get_delta_time(duration_since_epoch) as f64);
         DEFAULT_DROPPER.schedule_drop(transactions);
         results
         //Ok(ShardedExecutionOutput::new(execution_results, vec![]))
