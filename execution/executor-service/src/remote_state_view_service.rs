@@ -106,18 +106,19 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                                                       recv_condition_clone.clone()));
         }
 
+        // NOTE: why can't this be parallelized?
         while let Ok(message) = self.kv_rx.recv() {
-            let curr_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
-            let mut delta = 0.0;
-            if curr_time > message.start_ms_since_epoch.unwrap() {
-                delta = (curr_time - message.start_ms_since_epoch.unwrap()) as f64;
-            }
-            REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
-                .with_label_values(&["2_kv_req_coord_grpc_recv_spawning_req_handler"]).observe(delta);
-
-            let _timer = REMOTE_EXECUTOR_TIMER
-                .with_label_values(&["0", "kv_requests_handler_timer"])
-                .start_timer();
+            // let curr_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
+            // let mut delta = 0.0;
+            // if curr_time > message.start_ms_since_epoch.unwrap() {
+            //     delta = (curr_time - message.start_ms_since_epoch.unwrap()) as f64;
+            // }
+            // REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
+            //     .with_label_values(&["2_kv_req_coord_grpc_recv_spawning_req_handler"]).observe(delta);
+            //
+            // let _timer = REMOTE_EXECUTOR_TIMER
+            //     .with_label_values(&["0", "kv_requests_handler_timer"])
+            //     .start_timer();
 
             let priority = message.seq_num.unwrap();
 
@@ -127,9 +128,9 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                 self.kv_unprocessed_pq.push(message, priority);
                 self.recv_condition.1.notify_all();
             }
-            REMOTE_EXECUTOR_TIMER
-                .with_label_values(&["0", "kv_req_pq_size"])
-                .observe(self.kv_unprocessed_pq.len() as f64);
+            // REMOTE_EXECUTOR_TIMER
+            //     .with_label_values(&["0", "kv_req_pq_size"])
+            //     .observe(self.kv_unprocessed_pq.len() as f64);
         }
     }
 
@@ -161,35 +162,35 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         rng: &mut StdRng,
     ) {
         let start_ms_since_epoch = message.start_ms_since_epoch.unwrap();
-        {
-            let curr_time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
-            let mut delta = 0.0;
-            if curr_time > start_ms_since_epoch {
-                delta = (curr_time - start_ms_since_epoch) as f64;
-            }
-            REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
-                .with_label_values(&["3_kv_req_coord_handler_st"])
-                .observe(delta);
-        }
+        // {
+        //     let curr_time = SystemTime::now()
+        //         .duration_since(SystemTime::UNIX_EPOCH)
+        //         .unwrap()
+        //         .as_millis() as u64;
+        //     let mut delta = 0.0;
+        //     if curr_time > start_ms_since_epoch {
+        //         delta = (curr_time - start_ms_since_epoch) as f64;
+        //     }
+        //     REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
+        //         .with_label_values(&["3_kv_req_coord_handler_st"])
+        //         .observe(delta);
+        // }
         // we don't know the shard id until we deserialize the message, so lets default it to 0
-        let _timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "kv_requests"])
-            .start_timer();
-
-        let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "kv_req_deser"])
-            .start_timer();
+        // let _timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "kv_requests"])
+        //     .start_timer();
+        //
+        // let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "kv_req_deser"])
+        //     .start_timer();
         let req: RemoteKVRequest = bcs::from_bytes(&message.data).unwrap();
-        drop(bcs_deser_timer);
-
-        let timer_2 = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "kv_requests_2"])
-            .start_timer();
+        // drop(bcs_deser_timer);
+        //
+        // let timer_2 = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "kv_requests_2"])
+        //     .start_timer();
         let (shard_id, state_keys) = req.into();
-        trace!(
+        info!(
             "remote state view service - received request for shard {} with {} keys",
             shard_id,
             state_keys.len()
@@ -207,19 +208,19 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                 (state_key, state_value)
             })
             .collect_vec();
-        drop(timer_2);
+        // drop(timer_2);
 
-        let timer_3 = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "kv_requests_3"])
-            .start_timer();
+        // let timer_3 = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "kv_requests_3"])
+        //     .start_timer();
         let len = resp.len();
         let resp = RemoteKVResponse::new(resp);
-        let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "kv_resp_ser"])
-            .start_timer();
+        // let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "kv_resp_ser"])
+        //     .start_timer();
         let resp_serialized = bcs::to_bytes(&resp).unwrap();
-        drop(bcs_ser_timer);
-        trace!(
+        // drop(bcs_ser_timer);
+        info!(
             "remote state view service - sending response for shard {} with {} keys",
             shard_id,
             len
@@ -228,28 +229,28 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
 
         DEFAULT_DROPPER.schedule_drop(resp);
         DEFAULT_DROPPER.schedule_drop(message);
-       // info!("Processing message with seq_num: {}", seq_num);
+        info!("Processing message with seq_num: {}", seq_num);
         let resp_message = Message::create_with_metadata(resp_serialized, start_ms_since_epoch, seq_num, shard_id as u64);
-        drop(timer_3);
+        // drop(timer_3);
 
-        let _timer_4 = REMOTE_EXECUTOR_TIMER
-            .with_label_values(&["0", "kv_requests_4"])
-            .start_timer();
+        // let _timer_4 = REMOTE_EXECUTOR_TIMER
+        //     .with_label_values(&["0", "kv_requests_4"])
+        //     .start_timer();
 
         let rand_send_thread_idx = rng.gen_range(0, kv_tx[shard_id].len());
         kv_tx[shard_id][rand_send_thread_idx].lock().unwrap().send(resp_message, &MessageType::new("remote_kv_response".to_string()));
-        {
-            let curr_time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
-            let mut delta = 0.0;
-            if curr_time > start_ms_since_epoch {
-                delta = (curr_time - start_ms_since_epoch) as f64;
-            }
-            REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
-                .with_label_values(&["4_kv_req_coord_handler_end"])
-                .observe(delta);
-        }
+        // {
+        //     let curr_time = SystemTime::now()
+        //         .duration_since(SystemTime::UNIX_EPOCH)
+        //         .unwrap()
+        //         .as_millis() as u64;
+        //     let mut delta = 0.0;
+        //     if curr_time > start_ms_since_epoch {
+        //         delta = (curr_time - start_ms_since_epoch) as f64;
+        //     }
+        //     REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
+        //         .with_label_values(&["4_kv_req_coord_handler_end"])
+        //         .observe(delta);
+        // }
     }
 }
