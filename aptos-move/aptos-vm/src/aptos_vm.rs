@@ -2401,7 +2401,7 @@ impl AptosVM {
             },
             Transaction::UserTransaction(txn) => {
                 fail_point!("aptos_vm::execution::user_transaction");
-                let _timer = TXN_TOTAL_SECONDS.start_timer();
+                // let _timer = TXN_TOTAL_SECONDS.start_timer();
                 let (vm_status, output) = self.execute_user_transaction(resolver, txn, log_context);
 
                 if let StatusType::InvariantViolation = vm_status.status_type() {
@@ -2602,9 +2602,9 @@ impl VMExecutor for AptosVM {
         );
 
         let count = transactions.num_txns();
-        let _timer = TIMER
-            .with_label_values(&["sharded_block_executor_coordinator_wrapper"])
-            .start_timer();
+        // let _timer = TIMER
+        //     .with_label_values(&["sharded_block_executor_coordinator_wrapper"])
+        //     .start_timer();
         let ret = sharded_block_executor.execute_block_remote(
             state_view,
             transactions,
@@ -2637,7 +2637,7 @@ impl VMValidator for AptosVM {
         transaction: SignedTransaction,
         state_view: &impl StateView,
     ) -> VMValidatorResult {
-        let _timer = TXN_VALIDATION_SECONDS.start_timer();
+        // let _timer = TXN_VALIDATION_SECONDS.start_timer();
         let log_context = AdapterLogSchema::new(state_view.id(), 0);
 
         if !self

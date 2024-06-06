@@ -89,12 +89,12 @@ impl ChunkOutput {
         onchain_config: BlockExecutorConfigFromOnchain,
     ) -> Result<Self> {
         let state_view_arc = Arc::new(state_view);
-        let timer = TIMER
-            .with_label_values(&["partitioned_txns_clone"])
-            .start_timer();
+        // let timer = TIMER
+        //     .with_label_values(&["partitioned_txns_clone"])
+        //     .start_timer();
         let transactions_arc = Arc::new(transactions);
         let transactions_arc_clone = transactions_arc.clone();
-        drop(timer);
+        // drop(timer);
 
         let (sender, receiver) = mpsc::channel();
         rayon::spawn(move || {
@@ -117,9 +117,9 @@ impl ChunkOutput {
         // Unwrapping here is safe because the execution has finished and it is guaranteed that
         // the state view is not used anymore.
         let state_view = Arc::try_unwrap(state_view_arc).unwrap();
-        let _timer = TIMER
-            .with_label_values(&["flatten_results"])
-            .start_timer();
+        // let _timer = TIMER
+        //     .with_label_values(&["flatten_results"])
+        //     .start_timer();
         Ok(Self {
             transactions: receiver.recv().unwrap(),
             transaction_outputs,
@@ -280,9 +280,9 @@ pub fn update_counters_for_processed_chunk<T, O>(
     for (txn, output) in transactions.iter().zip(transaction_outputs.iter()) {
         if detailed_counters {
             if let Ok(size) = bcs::serialized_size(output.get_transaction_output()) {
-                metrics::APTOS_PROCESSED_TXNS_OUTPUT_SIZE
-                    .with_label_values(&[process_type])
-                    .observe(size as f64);
+                // metrics::APTOS_PROCESSED_TXNS_OUTPUT_SIZE
+                //     .with_label_values(&[process_type])
+                //     .observe(size as f64);
             }
         }
 
@@ -351,20 +351,20 @@ pub fn update_counters_for_processed_chunk<T, O>(
             None => "unknown",
         };
 
-        metrics::APTOS_PROCESSED_TXNS_COUNT
-            .with_label_values(&[process_type, kind, state])
-            .inc();
+        // metrics::APTOS_PROCESSED_TXNS_COUNT
+        //     .with_label_values(&[process_type, kind, state])
+        //     .inc();
 
         if !error_code.is_empty() {
-            metrics::APTOS_PROCESSED_FAILED_TXNS_REASON_COUNT
-                .with_label_values(&[
-                    detailed_counters_label,
-                    process_type,
-                    state,
-                    reason,
-                    &error_code,
-                ])
-                .inc();
+            // metrics::APTOS_PROCESSED_FAILED_TXNS_REASON_COUNT
+            //     .with_label_values(&[
+            //         detailed_counters_label,
+            //         process_type,
+            //         state,
+            //         reason,
+            //         &error_code,
+            //     ])
+            //     .inc();
         }
 
         if let Some(Transaction::UserTransaction(user_txn)) = txn.get_transaction() {
@@ -375,94 +375,94 @@ pub fn update_counters_for_processed_chunk<T, O>(
                     match account_authenticator {
                         AccountAuthenticator::Ed25519 { .. } => {
                             signature_count += 1;
-                            metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
-                                .with_label_values(&[process_type, "Ed25519"])
-                                .inc();
+                            // metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
+                            //     .with_label_values(&[process_type, "Ed25519"])
+                            //     .inc();
                         },
                         AccountAuthenticator::MultiEd25519 { signature, .. } => {
                             let count = signature.signatures().len();
                             signature_count += count;
-                            metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
-                                .with_label_values(&[process_type, "Ed25519_in_MultiEd25519"])
-                                .inc_by(count as u64);
+                            // metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
+                            //     .with_label_values(&[process_type, "Ed25519_in_MultiEd25519"])
+                            //     .inc_by(count as u64);
                         },
                         AccountAuthenticator::SingleKey { authenticator } => {
                             signature_count += 1;
-                            metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
-                                .with_label_values(&[
-                                    process_type,
-                                    &format!("{}_in_SingleKey", authenticator.signature().name()),
-                                ])
-                                .inc();
+                            // metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
+                            //     .with_label_values(&[
+                            //         process_type,
+                            //         &format!("{}_in_SingleKey", authenticator.signature().name()),
+                            //     ])
+                            //     .inc();
                         },
                         AccountAuthenticator::MultiKey { authenticator } => {
                             for (_, signature) in authenticator.signatures() {
                                 signature_count += 1;
-                                metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
-                                    .with_label_values(&[
-                                        process_type,
-                                        &format!("{}_in_MultiKey", signature.name()),
-                                    ])
-                                    .inc();
+                                // metrics::APTOS_PROCESSED_TXNS_AUTHENTICATOR
+                                //     .with_label_values(&[
+                                //         process_type,
+                                //         &format!("{}_in_MultiKey", signature.name()),
+                                //     ])
+                                //     .inc();
                             }
                         },
                     };
                 }
 
-                metrics::APTOS_PROCESSED_TXNS_NUM_AUTHENTICATORS
-                    .with_label_values(&[process_type])
-                    .observe(signature_count as f64);
+                // metrics::APTOS_PROCESSED_TXNS_NUM_AUTHENTICATORS
+                //     .with_label_values(&[process_type])
+                //     .observe(signature_count as f64);
             }
 
             match user_txn.payload() {
                 aptos_types::transaction::TransactionPayload::Script(_script) => {
-                    metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
-                        .with_label_values(&[process_type, "script", state])
-                        .inc();
+                    // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
+                    //     .with_label_values(&[process_type, "script", state])
+                    //     .inc();
                 },
                 aptos_types::transaction::TransactionPayload::EntryFunction(function) => {
-                    metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
-                        .with_label_values(&[process_type, "function", state])
-                        .inc();
+                    // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
+                    //     .with_label_values(&[process_type, "function", state])
+                    //     .inc();
 
                     let is_core = function.module().address() == &CORE_CODE_ADDRESS;
-                    metrics::APTOS_PROCESSED_USER_TRANSACTIONS_ENTRY_FUNCTION_MODULE
-                        .with_label_values(&[
-                            detailed_counters_label,
-                            process_type,
-                            if is_core { "core" } else { "user" },
-                            if detailed_counters {
-                                function.module().name().as_str()
-                            } else if is_core {
-                                "core_module"
-                            } else {
-                                "user_module"
-                            },
-                            state,
-                        ])
-                        .inc();
+                    // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_ENTRY_FUNCTION_MODULE
+                    //     .with_label_values(&[
+                    //         detailed_counters_label,
+                    //         process_type,
+                    //         if is_core { "core" } else { "user" },
+                    //         if detailed_counters {
+                    //             function.module().name().as_str()
+                    //         } else if is_core {
+                    //             "core_module"
+                    //         } else {
+                    //             "user_module"
+                    //         },
+                    //         state,
+                    //     ])
+                    //     .inc();
                     if is_core && detailed_counters {
-                        metrics::APTOS_PROCESSED_USER_TRANSACTIONS_ENTRY_FUNCTION_CORE_METHOD
-                            .with_label_values(&[
-                                process_type,
-                                function.module().name().as_str(),
-                                function.function().as_str(),
-                                state,
-                            ])
-                            .inc();
+                        // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_ENTRY_FUNCTION_CORE_METHOD
+                        //     .with_label_values(&[
+                        //         process_type,
+                        //         function.module().name().as_str(),
+                        //         function.function().as_str(),
+                        //         state,
+                        //     ])
+                        //     .inc();
                     }
                 },
                 aptos_types::transaction::TransactionPayload::Multisig(_) => {
-                    metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
-                        .with_label_values(&[process_type, "multisig", state])
-                        .inc();
+                    // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
+                    //     .with_label_values(&[process_type, "multisig", state])
+                    //     .inc();
                 },
 
                 // Deprecated.
                 aptos_types::transaction::TransactionPayload::ModuleBundle(_) => {
-                    metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
-                        .with_label_values(&[process_type, "deprecated_module_bundle", state])
-                        .inc();
+                    // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_PAYLOAD_TYPE
+                    //     .with_label_values(&[process_type, "deprecated_module_bundle", state])
+                    //     .inc();
                 },
             }
         }
@@ -479,14 +479,14 @@ pub fn update_counters_for_processed_chunk<T, O>(
                 ),
                 ContractEvent::V2(_v2) => (false, "event".to_string()),
             };
-            metrics::APTOS_PROCESSED_USER_TRANSACTIONS_CORE_EVENTS
-                .with_label_values(&[
-                    detailed_counters_label,
-                    process_type,
-                    if is_core { "core" } else { "user" },
-                    &creation_number,
-                ])
-                .inc();
+            // metrics::APTOS_PROCESSED_USER_TRANSACTIONS_CORE_EVENTS
+            //     .with_label_values(&[
+            //         detailed_counters_label,
+            //         process_type,
+            //         if is_core { "core" } else { "user" },
+            //         &creation_number,
+            //     ])
+            //     .inc();
         }
     }
 }
