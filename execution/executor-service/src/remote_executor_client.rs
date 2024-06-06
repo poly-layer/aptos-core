@@ -444,7 +444,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         // let timer = REMOTE_EXECUTOR_TIMER
         //     .with_label_values(&["0", "drop_state_view_finally"])
         //     .start_timer();
-        // self.state_view_service.drop_state_view();
+        self.state_view_service.drop_state_view();
         // drop(timer);
         // REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
         //     .with_label_values(&["9_8_execute_remote_block_done"]).observe(get_delta_time(duration_since_epoch) as f64);
