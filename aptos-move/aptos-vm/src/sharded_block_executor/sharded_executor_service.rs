@@ -34,6 +34,7 @@ use futures::{channel::oneshot, executor::block_on};
 use move_core_types::vm_status::VMStatus;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Instant;
 use rayon::prelude::IntoParallelIterator;
 use serde::{Deserialize, Serialize};
 use aptos_block_executor::transaction_provider::TxnProvider;
@@ -330,6 +331,7 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
             let exe_timer = SHARDED_EXECUTOR_SERVICE_SECONDS
                 .with_label_values(&[&self.shard_id.to_string(), "execute_block"])
                 .start_timer();
+            let time = Instant::now();
             let ret = self.execute_block(
                 blocking_transactions_provider,
                 state_view.as_ref(),
@@ -346,9 +348,9 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
             );
             drop(state_view);
             drop(exe_timer);
-
+            println!("Shard {} executed block in {} ms", self.shard_id, time.elapsed().as_millis());
             self.coordinator_client.lock().unwrap().record_execution_complete_time_on_shard();
-
+            // NOTE: this is not a stream with regards to the self.execute_block() function.
             stream_results_tx.send(TransactionIdxAndOutput {
                 txn_idx: u32::MAX,
                 txn_output: TransactionOutput::default(),

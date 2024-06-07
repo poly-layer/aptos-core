@@ -127,8 +127,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
                 let execute_command_type = format!("execute_command_{}", shard_id);
                 let execute_result_type = format!("execute_result_{}", shard_id);
                 let mut command_tx = vec![];
-                // NOTE: New number of channels
-                for _ in 0..num_threads/(num_shards / 2) {
+                for _ in 0..num_threads/(2 * num_shards) {
                     command_tx.push(Mutex::new(OutboundRpcHelper::new(self_addr, *address, outbound_rpc_runtime.clone())));
                 }
                 // TODO: add num_threads/(2 * num_shards) inbound channels
@@ -343,7 +342,6 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                         let execute_command_type = format!("execute_command_{}", shard_id);
                         let mut rng = StdRng::from_entropy();
                         let rand_send_thread_idx = rng.gen_range(0, senders[shard_id].len());
-                        println!("Let's check the range. shard_id: {}, outgoing_channels: {}", shard_id, senders[shard_id].len());
                         senders[shard_id][rand_send_thread_idx]
                             .lock()
                             .unwrap()
