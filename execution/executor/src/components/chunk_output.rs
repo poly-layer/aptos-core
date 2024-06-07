@@ -38,6 +38,7 @@ use fail::fail_point;
 use move_core_types::vm_status::StatusCode;
 use std::{ops::Deref, sync::Arc, time::Duration};
 use std::sync::mpsc;
+use std::time::Instant;
 use aptos_vm::counters::TIMER;
 
 pub struct ChunkOutput {
@@ -191,12 +192,19 @@ impl ChunkOutput {
         onchain_config: BlockExecutorConfigFromOnchain,
     ) -> Result<Vec<TransactionOutput>> {
         if !get_remote_addresses().is_empty() {
-            Ok(V::execute_block_sharded(
+            println!("Starting execution of a block (sharded).");
+            let start_time = Instant::now();
+            let res = Ok(V::execute_block_sharded(
                 REMOTE_SHARDED_BLOCK_EXECUTOR.lock().deref(),
                 partitioned_txns,
                 state_view,
                 onchain_config,
-            )?)
+            )?);
+            println!(
+                "Time used for executing a block (sharded): {:?}",
+                Instant::now().duration_since(start_time)
+            );
+            res
         } else {
             panic!("Temporarily local sharded execution is not supported");
             /*Ok(V::execute_block_sharded(

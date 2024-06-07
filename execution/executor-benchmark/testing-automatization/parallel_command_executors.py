@@ -138,6 +138,10 @@ git_update_command = [
    f"cd aptos-core/ && git remote set-url origin https://github.com/aptos-labs/aptos-core && git checkout main && git fetch && git pull && git checkout multi_machine_sharding_jan_playground && git pull",
 ]
 
+git_update_command = [
+    f"cd aptos-core/ && git checkout multi_machine_sharding_jan_playground && git pull",
+]
+
 def get_external_ip(instance):
     credentials, project = google.auth.default()
     credentials.refresh(Request())
@@ -181,7 +185,7 @@ def run_sessions_on_instances(instances, username, private_key_path):
         thread = threading.Thread(target=instance_session, args=(instance, username, private_key_path, close_event, git_update_command[i]))
         thread.start()
         threads.append(thread)
-        i = i + 1
+        # i = i + 1
 
     for thread in threads:
         thread.join()
