@@ -11,23 +11,23 @@ from google.auth.transport.requests import Request
 
 # Global list of VM instances
 instances = [
-    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "run-benchmark-1"},
+    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "run-benchmark-1"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-1"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-2"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-3"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-4"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-5"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-6"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-7"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-8"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-9"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-10"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-11"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-12"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-13"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-14"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-15"},
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-16"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-5"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-6"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-7"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-8"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-9"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-10"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-11"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-12"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-13"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-14"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-15"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-16"},
     # Add more instances as needed
 ]
 
@@ -182,10 +182,10 @@ def run_sessions_on_instances(instances, username, private_key_path):
     threads = []
     i = 0
     for instance in instances:
-        thread = threading.Thread(target=instance_session, args=(instance, username, private_key_path, close_event, git_update_command[i]))
+        thread = threading.Thread(target=instance_session, args=(instance, username, private_key_path, close_event, commands16shards[i]))
         thread.start()
         threads.append(thread)
-        # i = i + 1
+        i = i + 1
 
     for thread in threads:
         thread.join()

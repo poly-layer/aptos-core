@@ -26,7 +26,7 @@ use std::{
 };
 use std::sync::atomic::AtomicU64;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -231,6 +231,8 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let results: Vec<Vec<TransactionIdxAndOutput>> = (0..self.num_shards()).into_par_iter().map(|shard_id| {
             let mut num_outputs_received: u64 = 0;
             let mut outputs = vec![];
+            println!("Starting receiving results from shard {}", shard_id);
+            let time = Instant::now();
             loop {
                 let received_msg = self.result_rxs[shard_id].recv().unwrap();
                 let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
@@ -248,6 +250,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
                     break;
                 }
             }
+            println!("Finished receiving results from shard {} in {:?}", shard_id, time.elapsed());
             outputs
         }).collect();
 
