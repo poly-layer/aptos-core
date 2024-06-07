@@ -11,12 +11,12 @@ from google.auth.transport.requests import Request
 
 # Global list of VM instances
 instances = [
-    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "run-benchmark-1"},
+    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "run-benchmark-1"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-1"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-2"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-3"},
     {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-4"},
-    {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-5"},
+    # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-5"},
     # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-6"},
     # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-7"},
     # {"project": "aptos-jan-olkowski-playground", "zone": "us-west1-b", "instance_name": "sharding-executor-8"},
@@ -31,14 +31,34 @@ instances = [
     # Add more instances as needed
 ]
 
+local_ip_address = {
+    "sharding-executor-1": "10.138.0.4",
+    "sharding-executor-2": "10.138.0.5",
+    "sharding-executor-3": "10.138.0.6",
+    "sharding-executor-4": "10.138.0.7",
+    "sharding-executor-5": "10.138.0.8",
+    "sharding-executor-6": "10.138.0.9",
+    "sharding-executor-7": "10.138.0.10",
+    "sharding-executor-8": "10.138.0.11",
+    "sharding-executor-9": "10.138.0.19",
+    "sharding-executor-10": "10.138.0.20",
+    "sharding-executor-11": "10.138.0.21",
+    "sharding-executor-12": "10.138.0.22",
+    "sharding-executor-13": "10.138.0.23",
+    "sharding-executor-14": "10.138.0.27",
+    "sharding-executor-15": "10.138.0.36",
+    "sharding-executor-16": "10.138.0.37",
+
+}
+
 # Global list of commands to be executed on each VM
 # commands = [f"cd aptos-core/ && git remote set-url origin https://github.com/aptos-labs/aptos-core && git checkout main && git fetch && git pull && git checkout multi_machine_sharding",]
-commands4shards = [
-    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
-    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 1 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
-    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 2 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
-    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 3 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
-]
+# commands4shards = [
+#     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
+#     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 1 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
+#     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 2 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
+#     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 3 --num-shards 4 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 --num-executor-threads 48",
+# ]
 
 # commands6shards = [
 #     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 6 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 --num-executor-threads 48",
@@ -48,6 +68,75 @@ commands4shards = [
 #     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 4 --num-shards 6 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 --num-executor-threads 48",
 #     f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 5 --num-shards 6 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 --num-executor-threads 48",
 # ]
+
+commands8shards = [
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 1 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 2 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 3 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 4 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 5 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 6 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    f"cd aptos-core && RUST_LOG=off /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 7 --num-shards 8 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 --num-executor-threads 48",
+    #
+]
+
+rem_exe_add = "--remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.19:522010 10.138.0.20:522011"
+commands10shards = [
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 1 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 2 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 3 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 4 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 5 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 6 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 7 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 8 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 9 --num-shards 10 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 40",
+]
+
+
+commands12shards = [
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 1 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 2 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 3 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 4 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 5 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 6 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 7 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 8 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 9 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 10 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+    f"cd aptos-core && /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 11 --num-shards 12 --coordinator-address 10.138.0.3:52200 --remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.14:52210 10.138.0.15:52211 10.138.0.16:52212 10.138.0.17:52213 --num-executor-threads 48",
+#
+]
+
+rem_exe_add = "--remote-executor-addresses 10.138.0.4:52202 10.138.0.5:52203 10.138.0.6:52204 10.138.0.7:52205 10.138.0.8:52206 10.138.0.9:52207 10.138.0.10:52208 10.138.0.11:52209 10.138.0.19:52210 10.138.0.20:52211 10.138.0.21:52212 10.138.0.22:52213 10.138.0.23:52214 10.138.0.27:52215 10.138.0.36:52216 10.138.0.37:52217"
+metrics = "PUSH_METRICS_NAMESPACE=jan-benchmark PUSH_METRICS_ENDPOINT=https://gw-c7-2b.cloud.victoriametrics.com/api/v1/import/prometheus PUSH_METRICS_API_TOKEN=06147e32-17de-4d29-989e-6a640ab50f13"
+# metrics = ""
+commands16shards = [
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 0 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48 > executor-0.log",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 1 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48 > executor-1.log",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 2 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48 > executor-2.log",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 3 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48 > executor-3.log",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 4 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 5 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 6 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 7 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 8 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 9 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 10 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 11 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 12 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 13 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 14 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+    f"cd aptos-core && {metrics} /home/janolkowski/.cargo/bin/cargo run --profile performance -p aptos-executor-service --manifest-path /home/janolkowski/aptos-core/execution/executor-service/Cargo.toml -- --shard-id 15 --num-shards 16 --coordinator-address 10.138.0.3:52200 {rem_exe_add} --num-executor-threads 48",
+]
+
+git_update_command = [
+   f"cd aptos-core/ && git remote set-url origin https://github.com/aptos-labs/aptos-core && git checkout main && git fetch && git pull && git checkout multi_machine_sharding_jan_playground && git pull",
+]
 
 def get_external_ip(instance):
     credentials, project = google.auth.default()
@@ -89,7 +178,7 @@ def run_sessions_on_instances(instances, username, private_key_path):
     threads = []
     i = 0
     for instance in instances:
-        thread = threading.Thread(target=instance_session, args=(instance, username, private_key_path, close_event, commands4shards[i]))
+        thread = threading.Thread(target=instance_session, args=(instance, username, private_key_path, close_event, git_update_command[i]))
         thread.start()
         threads.append(thread)
         i = i + 1
