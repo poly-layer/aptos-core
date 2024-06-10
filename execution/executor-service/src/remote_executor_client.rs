@@ -26,7 +26,7 @@ use std::{
 };
 use std::sync::atomic::AtomicU64;
 use std::thread::JoinHandle;
-use std::time::{Instant, SystemTime};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -251,7 +251,10 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
                     break;
                 }
             }
-            println!("Finished receiving results from shard {} in {:?}", shard_id, time.elapsed());
+            let since_the_epoch = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
+            println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
             outputs
         }).collect();
 

@@ -34,7 +34,7 @@ use futures::{channel::oneshot, executor::block_on};
 use move_core_types::vm_status::VMStatus;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use rayon::prelude::IntoParallelIterator;
 use serde::{Deserialize, Serialize};
 use aptos_block_executor::transaction_provider::TxnProvider;
@@ -160,6 +160,10 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
                         shard_id,
                         round
                     );
+                    let since_the_epoch = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards");
+                    println!("The time at the end of this execution is {}", since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
                     // Send a self message to stop the cross-shard commit receiver.
                     cross_shard_client_clone.send_cross_shard_msg(
                         shard_id,
