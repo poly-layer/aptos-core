@@ -96,7 +96,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
 
         info!("Num handlers created is {}", thread_pool_clone.current_num_threads());
         // for _ in 0..thread_pool_clone.current_num_threads() {
-        for _ in 0..16 {
+        for _ in 0..40 {
             let state_view_clone = self.state_view.clone();
             let kv_tx_clone = self.kv_tx.clone();
             let kv_unprocessed_pq_clone = self.kv_unprocessed_pq.clone();
@@ -148,6 +148,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
             }
             drop(lg);
             let on_queue = pq.len();
+            println!("Processing this number of on_queue transaction: on_queue: {}", on_queue);
             // NOTE: trying to get as many req from the queue as possible
             for _ in 0..on_queue {
                 if let Some(message) = pq.pop() {
