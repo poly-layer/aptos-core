@@ -104,9 +104,9 @@ impl IncrementalProofState {
     }
 
     fn ready(&self, validator_verifier: &ValidatorVerifier) -> bool {
-        if self.aggregated_voting_power >= validator_verifier.quorum_voting_power() {
+        if self.aggregated_voting_power >= validator_verifier.total_voting_power() - validator_verifier.quorum_voting_power() + 1 {
             let recheck =
-                validator_verifier.check_voting_power(self.aggregated_signature.keys(), true);
+                validator_verifier.check_voting_power(self.aggregated_signature.keys(), false);
             if recheck.is_err() {
                 error!("Unexpected discrepancy: aggregated_voting_power is {}, while rechecking we get {:?}", self.aggregated_voting_power, recheck);
             }
