@@ -95,7 +95,8 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         let thread_pool_clone = self.thread_pool.clone();
 
         info!("Num handlers created is {}", thread_pool_clone.current_num_threads());
-        for _ in 0..thread_pool_clone.current_num_threads() {
+        // for _ in 0..thread_pool_clone.current_num_threads() {
+        for _ in 0..8 {
             let state_view_clone = self.state_view.clone();
             let kv_tx_clone = self.kv_tx.clone();
             let kv_unprocessed_pq_clone = self.kv_unprocessed_pq.clone();
