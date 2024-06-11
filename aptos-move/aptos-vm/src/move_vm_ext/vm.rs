@@ -28,6 +28,7 @@ use aptos_types::{
 use move_binary_format::errors::VMResult;
 use move_vm_runtime::{move_vm::MoveVM, native_extensions::NativeContextExtensions};
 use std::ops::Deref;
+use move_vm_types::loaded_data::runtime_types::TypeBuilder;
 
 pub struct MoveVmExt {
     inner: MoveVM,
@@ -53,7 +54,7 @@ impl MoveVmExt {
         //            This only happens in a edge case that is probably related to write set transactions or genesis,
         //            which logically speaking, shouldn't be handled by the VM at all.
         //            We should clean up the logic here once we get that refactored.
-        let (native_gas_params, misc_gas_params, ty_builder) = match gas_params {
+        let (native_gas_params, misc_gas_params, _ty_builder) = match gas_params {
             Ok(gas_params) => {
                 let ty_builder = aptos_prod_ty_builder(&features, gas_feature_version, gas_params);
                 (
@@ -88,7 +89,7 @@ impl MoveVmExt {
             &features,
             &timed_features,
             aggregator_v2_type_tagging,
-            ty_builder,
+            TypeBuilder::with_limits(128, 128),
             paranoid_type_checks,
         );
 
