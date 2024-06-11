@@ -360,6 +360,19 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
                 txn_output: TransactionOutput::default(),
             }).unwrap();
             stream_results_thread.join().unwrap();
+
+            // NOTE: new stuff to be able to measure TPS of the shard
+            let exe_time = SHARDED_EXECUTOR_SERVICE_SECONDS
+                .get_metric_with_label_values(&[&self.shard_id.to_string(), "execute_block"])
+                .unwrap()
+                .get_sample_sum();
+            info!(
+            "Shard {} has completed another block; On shard execution tps {} txns/s ({} txns / {} s)",
+            self.shard_id,
+            (cumulative_txns as f64 / exe_time),
+            cumulative_txns,
+            exe_time
+        );
         }
 
         let exe_time = SHARDED_EXECUTOR_SERVICE_SECONDS

@@ -110,6 +110,8 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         num_threads: Option<usize>,
     ) -> Self {
         let num_threads = num_threads.unwrap_or_else(num_cpus::get);
+        // NOTE: thread pool size: 60
+        // NOTE: nowhere used?
         let thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .num_threads(num_threads)
@@ -120,6 +122,9 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let self_addr = controller.get_self_addr();
         let controller_mut_ref = &mut controller;
         let num_shards = remote_shard_addresses.len();
+        // NOTE: 16 result channels is created here, instead I'd like to have a multiple sender single receiver channel
+        // or wrap this channel into unblocking primitives. Even better you can create a thread pool that spawns a receive
+        // task upon receiving a new result message from a shard.
         let (command_txs, result_rxs) = remote_shard_addresses
             .iter()
             .enumerate()
@@ -130,7 +135,6 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
                 for _ in 0..num_threads/(2 * num_shards) {
                     command_tx.push(Mutex::new(OutboundRpcHelper::new(self_addr, *address, outbound_rpc_runtime.clone())));
                 }
-                // TODO: add num_threads/(2 * num_shards) inbound channels
                 let result_rx = controller_mut_ref.create_inbound_channel(execute_result_type);
                 (command_tx, result_rx)
             })
@@ -151,10 +155,11 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
 
         controller.start();
 
+        // Note: thread pool size: 30
         let cmd_tx_thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("rmt-exe-cli-cmd-tx-{}", index))
-                .num_threads(num_cpus::get() / 2)
+                .num_threads(4)// num_cpus::get() / 2
                 .build()
                 .unwrap(),
         );
@@ -232,9 +237,11 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let results: Vec<Vec<TransactionIdxAndOutput>> = (0..self.num_shards()).into_par_iter().map(|shard_id| {
             let mut num_outputs_received: u64 = 0;
             let mut outputs = vec![];
-            println!("Starting receiving results from shard {}", shard_id);
+            // NOTE: printing
+            // println!("Starting receiving results from shard {}", shard_id);
             let time = Instant::now();
             loop {
+                // NOTE. recv() is blocking which effectively takes away~16 cores from the state view service.
                 let received_msg = self.result_rxs[shard_id].recv().unwrap();
                 let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
                     .with_label_values(&["0", "result_rx_bcs_deser"])
@@ -251,10 +258,11 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
                     break;
                 }
             }
-            let since_the_epoch = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards");
-            println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
+            // NOTE: printing
+            // let since_the_epoch = SystemTime::now()
+            //     .duration_since(UNIX_EPOCH)
+            //     .expect("Time went backwards");
+            // println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
             outputs
         }).collect();
 
@@ -309,7 +317,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
             .with_label_values(&["0_cmd_tx_start"]).observe(get_delta_time(duration_since_epoch) as f64);
 
         let mut expected_outputs = vec![0; self.num_shards()];
-        let batch_size = 1000;
+        let batch_size = 200;
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
             // TODO: Check if the function can get Arc<BlockExecutorConfigFromOnchain> instead.

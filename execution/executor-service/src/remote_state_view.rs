@@ -88,6 +88,7 @@ impl RemoteStateViewClient {
         coordinator_address: SocketAddr,
     ) -> Self {
         let num_kv_req_threads = num_cpus::get() / 2;
+        // NOTE: new thread pool created with 30 threads
         let thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("remote-state-view-shard-send-request-{}-{}", shard_id, index))
@@ -106,6 +107,7 @@ impl RemoteStateViewClient {
             shard_id,
             state_view.clone(),
             result_rx,
+            // NOTE: new thread pool created with 30 threads
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("remote-state-view-shard-recv-resp-{}-{}", shard_id, index))
                 .num_threads(num_cpus::get() / 2)

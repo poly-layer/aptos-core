@@ -37,8 +37,8 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         num_threads: Option<usize>,
     ) -> Self {
         let num_threads = num_threads.unwrap_or_else(num_cpus::get);
-        // let num_kv_req_threads = num_cpus::get() / 2;
-        let num_kv_req_threads = 8;
+        let num_kv_req_threads = num_cpus::get() / 2;
+        // let num_kv_req_threads = 8;
         let num_shards = remote_shard_addresses.len();
         info!("num threads for remote state view service: {}", num_threads);
         /*let mut thread_pool = vec![];
@@ -51,8 +51,9 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                     .unwrap(),
             );
         }*/
+        // NOTE: new thread pool of size: 60
         let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads((num_threads))
+            .num_threads(num_threads)
             .thread_name(|i| format!("remote-state-view-service-kv-request-handler-{}", i))
             .build()
             .unwrap();
@@ -95,8 +96,8 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         let thread_pool_clone = self.thread_pool.clone();
 
         info!("Num handlers created is {}", thread_pool_clone.current_num_threads());
-        // for _ in 0..thread_pool_clone.current_num_threads() {
-        for _ in 0..40 {
+        // NOTE: thread pool used with 60 threads
+        for _ in 0..thread_pool_clone.current_num_threads() {
             let state_view_clone = self.state_view.clone();
             let kv_tx_clone = self.kv_tx.clone();
             let kv_unprocessed_pq_clone = self.kv_unprocessed_pq.clone();
@@ -107,7 +108,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                                                       kv_unprocessed_pq_clone.clone(),
                                                       recv_condition_clone.clone()));
         }
-
+        // NOTE: blocking recv() call
         while let Ok(message) = self.kv_rx.recv() {
             let curr_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
             let mut delta = 0.0;
@@ -147,17 +148,17 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                 lg = cvar.wait(lg).unwrap();
             }
             drop(lg);
-            let on_queue = pq.len();
-            println!("Processing this number of on_queue transaction: on_queue: {}", on_queue);
+            // let on_queue = pq.len();
+            // println!("Processing this number of on_queue transaction: on_queue: {}", on_queue);
             // NOTE: trying to get as many req from the queue as possible
-            for _ in 0..on_queue {
+            //for _ in 0..on_queue {
                 if let Some(message) = pq.pop() {
                     let state_view = state_view.clone();
                     let kv_txs = kv_tx.clone();
 
                     Self::handle_message(message, state_view, kv_txs, &mut rng);
                 }
-            }
+            //}
         }
     }
 
