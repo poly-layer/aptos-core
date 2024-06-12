@@ -238,84 +238,84 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
 
     fn get_streamed_output_from_shards(&self, expected_outputs: Vec<u64>, duration_since_epoch: u64) -> Result<Vec<TransactionOutput>, VMStatus> {
         //info!("expected outputs {:?} ", expected_outputs);
-        let cmd_rx_thread_pool = Arc::new(
-            rayon::ThreadPoolBuilder::new()
-                .thread_name(move |index| format!("rmt-exe-cli-cmd-rx-{}", index))
-                .num_threads(16)// num_cpus::get() / 2
-                .build()
-                .unwrap(),
-        );
-        let total_expected_outputs: u64 = expected_outputs.iter().sum();
-        let mut num_outputs_received: u64 = 0;
-        let mut outputs = Vec::new();
-        for _ in 0..self.num_shards() {
-            outputs.push(Arc::new(Mutex::new(Vec::<TransactionIdxAndOutput>::new())));
-        }
-        // NOTE: printing
-        // println!("Starting receiving results from shard {}", shard_id);
-        let time = Instant::now();
-        loop {
-            // NOTE. recv() is blocking which effectively takes away the thread.
-            let received_msg = self.result_rxs[0].recv().unwrap();
-            let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-                .with_label_values(&["0", "result_rx_bcs_deser"])
-                .start_timer();
-            #[derive(Deserialize)]
-            struct ShardTransactionIdxAndOutput(usize, Vec<TransactionIdxAndOutput>);
-            let result: ShardTransactionIdxAndOutput = bcs::from_bytes(&received_msg.to_bytes()).unwrap();
-            drop(bcs_deser_timer);
-            num_outputs_received += result.1.len() as u64;
-            //info!("Streamed output from shard {}; txn_id {}", shard_id, result.txn_idx);
-            let outputs_clone = outputs.clone();
-            cmd_rx_thread_pool.spawn(move || {
-                outputs_clone[result.0].lock().unwrap().extend(result.1);
-            });
-            // outputs[result.0].extend(result.1);
-            if num_outputs_received == total_expected_outputs {
-                let delta = get_delta_time(duration_since_epoch);
-                REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                    .with_label_values(&["9_1_results_tx_msg_remote_exe_recv"]).observe(delta as f64);
-                break;
-            }
-        }
-        let results: Vec<Vec<TransactionIdxAndOutput>> = outputs.into_par_iter().map(|m| m.lock().unwrap().clone()).collect();
+        // let cmd_rx_thread_pool = Arc::new(
+        //     rayon::ThreadPoolBuilder::new()
+        //         .thread_name(move |index| format!("rmt-exe-cli-cmd-rx-{}", index))
+        //         .num_threads(16)// num_cpus::get() / 2
+        //         .build()
+        //         .unwrap(),
+        // );
+        // let total_expected_outputs: u64 = expected_outputs.iter().sum();
+        // let mut num_outputs_received: u64 = 0;
+        // let mut outputs = Vec::new();
+        // for _ in 0..self.num_shards() {
+        //     outputs.push(Arc::new(Mutex::new(Vec::<TransactionIdxAndOutput>::new())));
+        // }
+        // // NOTE: printing
+        // // println!("Starting receiving results from shard {}", shard_id);
+        // let time = Instant::now();
+        // loop {
+        //     // NOTE. recv() is blocking which effectively takes away the thread.
+        //     let received_msg = self.result_rxs[0].recv().unwrap();
+        //     let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+        //         .with_label_values(&["0", "result_rx_bcs_deser"])
+        //         .start_timer();
+        //     #[derive(Deserialize)]
+        //     struct ShardTransactionIdxAndOutput(usize, Vec<TransactionIdxAndOutput>);
+        //     let result: ShardTransactionIdxAndOutput = bcs::from_bytes(&received_msg.to_bytes()).unwrap();
+        //     drop(bcs_deser_timer);
+        //     num_outputs_received += result.1.len() as u64;
+        //     //info!("Streamed output from shard {}; txn_id {}", shard_id, result.txn_idx);
+        //     let outputs_clone = outputs.clone();
+        //     cmd_rx_thread_pool.spawn(move || {
+        //         outputs_clone[result.0].lock().unwrap().extend(result.1);
+        //     });
+        //     // outputs[result.0].extend(result.1);
+        //     if num_outputs_received == total_expected_outputs {
+        //         let delta = get_delta_time(duration_since_epoch);
+        //         REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //             .with_label_values(&["9_1_results_tx_msg_remote_exe_recv"]).observe(delta as f64);
+        //         break;
+        //     }
+        // }
+        // let results: Vec<Vec<TransactionIdxAndOutput>> = outputs.into_par_iter().map(|m| m.lock().unwrap().clone()).collect();
         // NOTE: printing
             // let since_the_epoch = SystemTime::now()
             //     .duration_since(UNIX_EPOCH)
             //     .expect("Time went backwards");
             // println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
 
-        // let results: Vec<Vec<TransactionIdxAndOutput>> = (0..self.num_shards()).into_par_iter().map(|shard_id| {
-        //     let mut num_outputs_received: u64 = 0;
-        //     let mut outputs = vec![];
-        //     // NOTE: printing
-        //     // println!("Starting receiving results from shard {}", shard_id);
-        //     let time = Instant::now();
-        //     loop {
-        //         // NOTE: recv() is blocking which effectively takes away~16 cores from the state view service.
-        //         let received_msg = self.result_rxs[shard_id].recv().unwrap();
-        //         let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
-        //             .with_label_values(&["0", "result_rx_bcs_deser"])
-        //             .start_timer();
-        //         let result: Vec<TransactionIdxAndOutput> = bcs::from_bytes(&received_msg.to_bytes()).unwrap();
-        //         drop(bcs_deser_timer);
-        //         num_outputs_received += result.len() as u64;
-        //         //info!("Streamed output from shard {}; txn_id {}", shard_id, result.txn_idx);
-        //         outputs.extend(result);
-        //         if num_outputs_received == expected_outputs[shard_id] {
-        //             let delta = get_delta_time(duration_since_epoch);
-        //             REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-        //                 .with_label_values(&["9_1_results_tx_msg_remote_exe_recv"]).observe(delta as f64);
-        //             break;
-        //         }
-        //     }
-        //     // NOTE: printing
-        //     // let since_the_epoch = SystemTime::now()
-        //     //     .duration_since(UNIX_EPOCH)
-        //     //     .expect("Time went backwards");
-        //     // println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
-        //     outputs
-        // }).collect();
+        let results: Vec<Vec<TransactionIdxAndOutput>> = (0..self.num_shards()).into_par_iter().map(|shard_id| {
+            let mut num_outputs_received: u64 = 0;
+            let mut outputs = vec![];
+            // NOTE: printing
+            // println!("Starting receiving results from shard {}", shard_id);
+            let time = Instant::now();
+            loop {
+                // NOTE: recv() is blocking which effectively takes away~16 cores from the state view service.
+                let received_msg = self.result_rxs[shard_id].recv().unwrap();
+                let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
+                    .with_label_values(&["0", "result_rx_bcs_deser"])
+                    .start_timer();
+                let result: Vec<TransactionIdxAndOutput> = bcs::from_bytes(&received_msg.to_bytes()).unwrap();
+                drop(bcs_deser_timer);
+                num_outputs_received += result.len() as u64;
+                //info!("Streamed output from shard {}; txn_id {}", shard_id, result.txn_idx);
+                outputs.extend(result);
+                if num_outputs_received == expected_outputs[shard_id] {
+                    let delta = get_delta_time(duration_since_epoch);
+                    REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+                        .with_label_values(&["9_1_results_tx_msg_remote_exe_recv"]).observe(delta as f64);
+                    break;
+                }
+            }
+            // NOTE: printing
+            // let since_the_epoch = SystemTime::now()
+            //     .duration_since(UNIX_EPOCH)
+            //     .expect("Time went backwards");
+            // println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
+            outputs
+        }).collect();
 
         let delta = get_delta_time(duration_since_epoch);
         REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER

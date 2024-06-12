@@ -308,13 +308,12 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
 
     fn stream_execution_result(&mut self, txn_idx_output: Vec<TransactionIdxAndOutput>) {
         //info!("Sending output to coordinator for txn_idx: {:?}", txn_idx_output.txn_idx);
-        // let execute_result_type = format!("execute_result_{}", self.shard_id);
-        let execute_result_type = format!("execute_result_{}", -1);
-        #[derive(Serialize)]
-        struct ShardTransactionIdxAndOutput(usize, Vec<TransactionIdxAndOutput>);
-        let wrapped_txn_idx_output = ShardTransactionIdxAndOutput(self.shard_id, txn_idx_output);
-        // let output_message = bcs::to_bytes(&txn_idx_output).unwrap();
-        let output_message = bcs::to_bytes(&wrapped_txn_idx_output).unwrap();
+        let execute_result_type = format!("execute_result_{}", self.shard_id);
+        // let execute_result_type = format!("execute_result_{}", -1);
+        // struct ShardTransactionIdxAndOutput(usize, Vec<TransactionIdxAndOutput>);
+        // let wrapped_txn_idx_output = ShardTransactionIdxAndOutput(self.shard_id, txn_idx_output);
+        let output_message = bcs::to_bytes(&txn_idx_output).unwrap();
+        // let output_message = bcs::to_bytes(&wrapped_txn_idx_output).unwrap();
         self.result_tx.send(Message::new(output_message), &MessageType::new(execute_result_type));
     }
 
