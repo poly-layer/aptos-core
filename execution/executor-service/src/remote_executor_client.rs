@@ -126,23 +126,37 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         // NOTE: 16 result channels is created here, instead I'd like to have a multiple sender single receiver channel
         // or wrap this channel into unblocking primitives. Even better you can create a thread pool that spawns a receive
         // task upon receiving a new result message from a shard.
-        let command_txs = remote_shard_addresses
+        let (command_txs, result_rxs) = remote_shard_addresses
             .iter()
             .enumerate()
             .map(|(shard_id, address)| {
                 let execute_command_type = format!("execute_command_{}", shard_id);
-                // CHANGE:
                 let execute_result_type = format!("execute_result_{}", shard_id);
                 let mut command_tx = vec![];
                 for _ in 0..num_threads/(2 * num_shards) {
                     command_tx.push(Mutex::new(OutboundRpcHelper::new(self_addr, *address, outbound_rpc_runtime.clone())));
                 }
-                // let result_rx = controller_mut_ref.create_inbound_channel(execute_result_type);
-                command_tx
+                let result_rx = controller_mut_ref.create_inbound_channel(execute_result_type);
+                (command_tx, result_rx)
             })
-            .collect();
-        let execute_result_type = format!("execute_result_{}", -1);
-        let result_rxs = vec![controller_mut_ref.create_inbound_channel(execute_result_type)];
+            .unzip();
+        // let command_txs = remote_shard_addresses
+        //     .iter()
+        //     .enumerate()
+        //     .map(|(shard_id, address)| {
+        //         let execute_command_type = format!("execute_command_{}", shard_id);
+        //         // CHANGE:
+        //         let execute_result_type = format!("execute_result_{}", shard_id);
+        //         let mut command_tx = vec![];
+        //         for _ in 0..num_threads/(2 * num_shards) {
+        //             command_tx.push(Mutex::new(OutboundRpcHelper::new(self_addr, *address, outbound_rpc_runtime.clone())));
+        //         }
+        //         // let result_rx = controller_mut_ref.create_inbound_channel(execute_result_type);
+        //         command_tx
+        //     })
+        //     .collect();
+        // let execute_result_type = format!("execute_result_{}", -1);
+        // let result_rxs = vec![controller_mut_ref.create_inbound_channel(execute_result_type)];
 
         let state_view_service = Arc::new(RemoteStateViewService::new(
             controller_mut_ref,
