@@ -177,7 +177,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let cmd_tx_thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("rmt-exe-cli-cmd-tx-{}", index))
-                .num_threads(30)// num_cpus::get() / 2
+                .num_threads(16)// num_cpus::get() / 2
                 .build()
                 .unwrap(),
         );
@@ -298,7 +298,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
             //     .duration_since(UNIX_EPOCH)
             //     .expect("Time went backwards");
             // println!("Finished receiving results from shard {} in {:?}", shard_id, since_the_epoch.as_secs() * 1000 + u64::from(since_the_epoch.subsec_millis()));
-
+        // NOTE: into_par_inter takes a global thread pool from somewhere - to be checked
         let results: Vec<Vec<TransactionIdxAndOutput>> = (0..self.num_shards()).into_par_iter().map(|shard_id| {
             let mut num_outputs_received: u64 = 0;
             let mut outputs = vec![];
