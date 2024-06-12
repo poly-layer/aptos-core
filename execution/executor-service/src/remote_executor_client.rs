@@ -177,7 +177,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let cmd_tx_thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("rmt-exe-cli-cmd-tx-{}", index))
-                .num_threads(16)// num_cpus::get() / 2
+                .num_threads(8)// num_cpus::get() / 2
                 .build()
                 .unwrap(),
         );
