@@ -38,7 +38,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
     ) -> Self {
         let num_threads = num_threads.unwrap_or_else(num_cpus::get);
         // CHANGE:
-        let num_kv_req_threads = 1; //num_cpus::get() / 2;
+        let num_kv_req_threads = 16; //num_cpus::get() / 2;
         // let num_kv_req_threads = 8;
         let num_shards = remote_shard_addresses.len();
         info!("num threads for remote state view service: {}", num_threads);
