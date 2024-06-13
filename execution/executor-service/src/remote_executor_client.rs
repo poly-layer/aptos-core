@@ -26,7 +26,7 @@ use std::{
 };
 use std::sync::atomic::AtomicU64;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -301,6 +301,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
             .with_label_values(&["0_cmd_tx_start"]).observe(get_delta_time(duration_since_epoch) as f64);
         // batch transactions
+        let time = Instant::now();
         let mut expected_outputs = vec![0; self.num_shards()];
         let batch_size = 200;
         let mut chunked_txs = vec![vec![]; self.num_shards()];
@@ -327,16 +328,18 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                     Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0)
                 }).collect::<Vec<Message>>();
         }
+        println!("Time elapsed in chunking txs: {:?}", time.elapsed().as_millis());
         // NOTE: sending transactions to shards
         let max_batch_size = chunked_txs.iter().map(|txs| txs.len()).max().unwrap();
+        let chunked_txs_arc = Arc::new(chunked_txs.clone());
         for i in 0..max_batch_size {
             for j in 0..self.num_shards() {
                 if (i >= chunked_txs[j].len()) {
                     continue;
                 }
-                let chunked_txs_clone = Arc::new(&chunked_txs);
+                let chunked_txs_clone = chunked_txs_arc.clone();
                 let senders = self.command_txs.clone();
-                //self.cmd_tx_thread_pool.spawn(move || {
+                self.cmd_tx_thread_pool.spawn(move || {
                     let msg = chunked_txs_clone[j][i].clone();
                     REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
                         .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
@@ -347,9 +350,10 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                         .lock()
                         .unwrap()
                         .send(msg, &MessageType::new(execute_command_type));
-                //});
+                });
             }
         }
+        println!("Time elapsed in sending txs: {:?}", time.elapsed().as_millis());
 
         // let mut expected_outputs = vec![0; self.num_shards()];
         // let batch_size = 200;
