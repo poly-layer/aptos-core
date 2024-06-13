@@ -153,7 +153,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let cmd_tx_thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("rmt-exe-cli-cmd-tx-{}", index))
-                .num_threads(4) //(num_cpus::get() / 2)
+                .num_threads(16) //(num_cpus::get() / 2)
                 .build()
                 .unwrap(),
         );
@@ -303,50 +303,54 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         // batch transactions
         let time = Instant::now();
         let mut expected_outputs = vec![0; self.num_shards()];
-        let batch_size = 200;
+        let batch_size = 200usize;
         let mut chunked_txs = vec![vec![]; self.num_shards()];
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
-            let onchain_config_clone = onchain_config.clone();
-            let transactions_clone = transactions.clone();
-            let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
-            let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
-            let num_txns = shard_txns.len();
-            chunked_txs[shard_id] = shard_txns
-                .chunks(batch_size).enumerate()
-                .map(|(chunk_idx, txns)| {
-                    let analyzed_txns = txns.iter().map(|txn| {
-                        txn.txn()
-                    }).collect::<Vec<&AnalyzedTransaction>>();
-                    let execution_batch_req = CmdsAndMetaDataRef {
-                        cmds: &analyzed_txns,
-                        num_txns,
-                        shard_txns_start_index: index_offset,
-                        onchain_config: &onchain_config_clone,
-                        batch_start_index: chunk_idx * batch_size,
-                    };
-                    Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0)
-                }).collect::<Vec<Message>>();
+            let mut i = 0usize;
+            while (i < expected_outputs[shard_id] as usize) {
+                chunked_txs[shard_id].push((i, std::cmp::min(i + batch_size, expected_outputs[shard_id] as usize)));
+                i = i + batch_size;
+            }
         }
         println!("Time elapsed in chunking txs: {:?}", time.elapsed().as_millis());
         // NOTE: sending transactions to shards
         let max_batch_size = chunked_txs.iter().map(|txs| txs.len()).max().unwrap();
         let chunked_txs_arc = Arc::new(chunked_txs.clone());
-        for i in 0..max_batch_size {
-            for j in 0..self.num_shards() {
-                if (i >= chunked_txs[j].len()) {
+        for chunk_idx in 0..max_batch_size {
+            for shard_id in 0..self.num_shards() {
+                if (chunk_idx >= chunked_txs[shard_id].len()) {
                     continue;
                 }
-                let chunked_txs_clone = chunked_txs_arc.clone();
+                let onchain_config_clone = onchain_config.clone();
+                let transactions_clone = transactions.clone();
+                let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
+                let batch_range = chunked_txs_arc[shard_id][chunk_idx];
                 let senders = self.command_txs.clone();
                 self.cmd_tx_thread_pool.spawn(move || {
-                    let msg = chunked_txs_clone[j][i].clone();
+                    let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
+                    let num_txns = shard_txns.len();
+                    let analyzed_txns = shard_txns[batch_range.0..batch_range.1].iter().map(|txn| {
+                        txn.txn()
+                    }).collect::<Vec<&AnalyzedTransaction>>();
+                    let execution_batch_req = CmdsAndMetaDataRef {
+                                            cmds: &analyzed_txns,
+                                            num_txns,
+                                            shard_txns_start_index: index_offset,
+                                            onchain_config: &onchain_config_clone,
+                                            batch_start_index: chunk_idx * batch_size,
+                                        };
+                    let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+                        .with_label_values(&["0", "cmd_tx_bcs_ser"])
+                        .start_timer();
+                    let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
+                    drop(bcs_ser_timer);
                     REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
                         .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
-                    let execute_command_type = format!("execute_command_{}", j);
+                    let execute_command_type = format!("execute_command_{}", shard_id);
                     let mut rng = StdRng::from_entropy();
-                    let rand_send_thread_idx = rng.gen_range(0, senders[j].len());
-                    senders[j][rand_send_thread_idx]
+                    let rand_send_thread_idx = rng.gen_range(0, senders[shard_id].len());
+                    senders[shard_id][rand_send_thread_idx]
                         .lock()
                         .unwrap()
                         .send(msg, &MessageType::new(execute_command_type));
