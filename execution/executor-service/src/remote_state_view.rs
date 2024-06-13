@@ -209,7 +209,7 @@ impl RemoteStateViewClient {
         REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER
             .with_label_values(&["0_kv_req_grpc_shard_send_1_lock_acquired"]).observe(delta);
 
-        let num_threads = 4;
+        let num_threads = 2;
         let rand_thread = rand::thread_rng().gen_range(0, num_threads);
         sender_lk.send(Message::create_with_metadata(request_message, duration_since_epoch, seq_num, shard_id as u64),
                        &MessageType::new(format!("remote_kv_request_{}", rand_thread)));
