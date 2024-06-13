@@ -234,7 +234,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
             shard_id: usize,
             transactions: Vec<TransactionIdxAndOutput>,
         }
-        let num_recv_threads = 16;
+        let num_recv_threads = 1;
         let to_complete = Mutex::new(self.num_shards());
         let mut num_outputs_received = Vec::new();
         for _ in 0..self.num_shards() {

@@ -316,7 +316,7 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
             transactions: Vec<TransactionIdxAndOutput>,
         }
         let output_message = bcs::to_bytes(&AsyncTransactionOutput{shard_id: self.shard_id, transactions: txn_idx_output}).unwrap();
-        let num_recv_threads = 16;
+        let num_recv_threads = 1;
         let mut rng = StdRng::from_entropy();
         let rand_recv_thread = rng.gen_range(0, num_recv_threads);
         let execute_result_type = format!("execute_result_{}", rand_recv_thread);
