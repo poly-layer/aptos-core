@@ -121,20 +121,36 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let self_addr = controller.get_self_addr();
         let controller_mut_ref = &mut controller;
         let num_shards = remote_shard_addresses.len();
-        let (command_txs, result_rxs) = remote_shard_addresses
+        let command_txs = remote_shard_addresses
             .iter()
             .enumerate()
             .map(|(shard_id, address)| {
                 let execute_command_type = format!("execute_command_{}", shard_id);
-                let execute_result_type = format!("execute_result_{}", shard_id);
                 let mut command_tx = vec![];
                 for _ in 0..num_threads/(2 * num_shards) {
                     command_tx.push(Mutex::new(OutboundRpcHelper::new(self_addr, *address, outbound_rpc_runtime.clone())));
                 }
-                let result_rx = controller_mut_ref.create_inbound_channel(execute_result_type);
-                (command_tx, result_rx)
-            })
-            .unzip();
+                command_tx
+            }).collect();
+
+        let num_recv_threads = 60;
+        let result_rxs = (0..num_recv_threads).map(|thread_id| {
+            controller_mut_ref.create_inbound_channel(format!("execute_result_{}", thread_id))
+        }).collect::<Vec<_>>();
+        // let (command_txs, result_rxs) = remote_shard_addresses
+        //     .iter()
+        //     .enumerate()
+        //     .map(|(shard_id, address)| {
+        //         let execute_command_type = format!("execute_command_{}", shard_id);
+        //         let execute_result_type = format!("execute_result_{}", shard_id);
+        //         let mut command_tx = vec![];
+        //         for _ in 0..num_threads/(2 * num_shards) {
+        //             command_tx.push(Mutex::new(OutboundRpcHelper::new(self_addr, *address, outbound_rpc_runtime.clone())));
+        //         }
+        //         let result_rx = controller_mut_ref.create_inbound_channel(execute_result_type);
+        //         (command_tx, result_rx)
+        //     })
+        //     .unzip();
 
         let state_view_service = Arc::new(RemoteStateViewService::new(
             controller_mut_ref,
@@ -234,11 +250,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
             shard_id: usize,
             transactions: Vec<TransactionIdxAndOutput>,
         }
-        let num_recv_threads = 16;
-        let mut num_outputs_received = Vec::new();
-        for _ in 0..self.num_shards() {
-            num_outputs_received.push(Mutex::new(0u64));
-        }
+        let num_recv_threads = 30;
         let async_results: Vec<Vec<AsyncTransactionOutput>> = (0..num_recv_threads).into_par_iter().map(|channel_id| {
             let mut outputs = vec![];
             let mut can_break = false;
