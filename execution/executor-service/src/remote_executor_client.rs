@@ -336,7 +336,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                 }
                 let chunked_txs_clone = chunked_txs.clone();
                 let senders = self.command_txs.clone();
-                self.cmd_tx_thread_pool.spawn(move || {
+                //self.cmd_tx_thread_pool.spawn(move || {
                     let msg = chunked_txs_clone[j][i].clone();
                     REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
                         .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
@@ -347,7 +347,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                         .lock()
                         .unwrap()
                         .send(msg, &MessageType::new(execute_command_type));
-                });
+                //});
             }
         }
 
