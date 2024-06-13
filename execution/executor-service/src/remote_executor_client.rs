@@ -397,7 +397,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                 let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
                 let batch_range = chunked_txs_arc[shard_id][chunk_idx];
                 let senders = self.command_txs.clone();
-                self.cmd_tx_thread_pool.spawn(move || {
+                self.cmd_tx_thread_pool.spawn_fifo(move || {
                     let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
                     let num_txns = shard_txns.len();
                     let analyzed_txns = shard_txns[batch_range.0..batch_range.1].iter().map(|txn| {
