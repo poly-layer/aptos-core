@@ -306,6 +306,7 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
                         if !curr_batch.is_empty() {
                             coordinator_client_clone.lock().unwrap().stream_execution_result(curr_batch);
                         }
+                        coordinator_client_clone.lock().unwrap().stream_execution_result(vec![txn_idx_output]);
                         break;
                     }
                     curr_batch.push(txn_idx_output);

@@ -235,7 +235,6 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
             transactions: Vec<TransactionIdxAndOutput>,
         }
         let num_recv_threads = 1;
-        let to_complete = Mutex::new(self.num_shards());
         let mut num_outputs_received = Vec::new();
         for _ in 0..self.num_shards() {
             num_outputs_received.push(Mutex::new(0u64));
@@ -243,6 +242,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let async_results: Vec<Vec<AsyncTransactionOutput>> = (0..num_recv_threads).into_par_iter().map(|channel_id| {
             let mut outputs = vec![];
             let mut can_break = false;
+            let mut to_complete = self.num_shards();
             loop {
                 let received_msg = self.result_rxs[channel_id].recv().unwrap();
                 let bcs_deser_timer = REMOTE_EXECUTOR_TIMER
@@ -250,16 +250,13 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
                     .start_timer();
                 let result: AsyncTransactionOutput = bcs::from_bytes(&received_msg.to_bytes()).unwrap();
                 drop(bcs_deser_timer);
-                {
-                    let mut num_received_shard = num_outputs_received[result.shard_id].lock().unwrap();
-                    *num_received_shard += result.transactions.len() as u64;
-                    if (*num_received_shard == expected_outputs[result.shard_id]) {
-                        let mut to_complete_unlock = to_complete.lock().unwrap();
-                        *to_complete_unlock -= 1;
-                        if *to_complete_unlock == 0 {can_break = true;}
-                    }
+                if (result.transactions.last().unwrap().txn_idx == u32::MAX) {
+                    to_complete -= 1;
+                    if to_complete == 0 {can_break = true;}
                 }
-                outputs.push(result);
+                else {
+                    outputs.push(result);
+                }
                 //info!("Streamed output from shard {}; txn_id {}", shard_id, result.txn_idx);
                 if can_break {
                     let delta = get_delta_time(duration_since_epoch);

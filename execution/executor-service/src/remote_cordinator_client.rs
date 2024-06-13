@@ -315,17 +315,25 @@ impl CoordinatorClient<RemoteStateViewClient> for RemoteCoordinatorClient {
             shard_id: usize,
             transactions: Vec<TransactionIdxAndOutput>,
         }
-        let output_message = bcs::to_bytes(&AsyncTransactionOutput{shard_id: self.shard_id, transactions: txn_idx_output}).unwrap();
-        let num_recv_threads = 1;
-        let mut rng = StdRng::from_entropy();
-        let rand_recv_thread = rng.gen_range(0, num_recv_threads);
-        let execute_result_type = format!("execute_result_{}", rand_recv_thread);
-        self.result_tx.send(Message::new(output_message), &MessageType::new(execute_result_type));
+        let num_recv_threads = 16;
+
+        if txn_idx_output.last().unwrap().txn_idx == u32::MAX {
+            for thread_id in (0..num_recv_threads) {
+                let execute_result_type = format!("execute_result_{}", thread_id);
+                let output_message = bcs::to_bytes(&AsyncTransactionOutput { shard_id: self.shard_id, transactions: txn_idx_output.clone() }).unwrap();
+                self.result_tx.send(Message::new(output_message), &MessageType::new(execute_result_type));
+            }
+        } else {
+            let output_message = bcs::to_bytes(&AsyncTransactionOutput { shard_id: self.shard_id, transactions: txn_idx_output }).unwrap();
+            let mut rng = StdRng::from_entropy();
+            let rand_recv_thread = rng.gen_range(0, num_recv_threads);
+            let execute_result_type = format!("execute_result_{}", rand_recv_thread);
+            self.result_tx.send(Message::new(output_message), &MessageType::new(execute_result_type));
+        }
         // let execute_result_type = format!("execute_result_{}", self.shard_id);
         // let output_message = bcs::to_bytes(&txn_idx_output).unwrap();
         // self.result_tx.send(Message::new(output_message), &MessageType::new(execute_result_type));
     }
-
     fn record_execution_complete_time_on_shard(&self) {
         let duration_since_epoch = self.cmd_rx_msg_duration_since_epoch.load(std::sync::atomic::Ordering::Relaxed);
         let delta = get_delta_time(duration_since_epoch);
