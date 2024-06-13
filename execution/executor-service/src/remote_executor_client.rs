@@ -300,134 +300,184 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
 
         REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
             .with_label_values(&["0_cmd_tx_start"]).observe(get_delta_time(duration_since_epoch) as f64);
-
+        // batch transactions
         let mut expected_outputs = vec![0; self.num_shards()];
         let batch_size = 200;
+        let mut chunked_txs = vec![vec![]; self.num_shards()];
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
-            // TODO: Check if the function can get Arc<BlockExecutorConfigFromOnchain> instead.
             let onchain_config_clone = onchain_config.clone();
             let transactions_clone = transactions.clone();
-            let senders = self.command_txs.clone();
-            self.cmd_tx_thread_pool.spawn(move || {
-                let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
-                let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
-                let num_txns = shard_txns.len();
-
-                let _ = shard_txns
-                    .chunks(batch_size)
-                    .enumerate()
-                    .for_each(|(chunk_idx, txns)| {
-                        let analyzed_txns = txns.iter().map(|txn| {
-                            txn.txn()
-                        }).collect::<Vec<&AnalyzedTransaction>>();
-                        let execution_batch_req = CmdsAndMetaDataRef {
-                            cmds: &analyzed_txns,
-                            num_txns,
-                            shard_txns_start_index: index_offset,
-                            onchain_config: &onchain_config_clone,
-                            batch_start_index: chunk_idx * batch_size,
-                        };
-                        let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-                            .with_label_values(&["0", "cmd_tx_bcs_ser"])
-                            .start_timer();
-                        let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
-                        drop(bcs_ser_timer);
-                        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                            .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
-                        let execute_command_type = format!("execute_command_{}", shard_id);
-                        let mut rng = StdRng::from_entropy();
-                        let rand_send_thread_idx = rng.gen_range(0, senders[shard_id].len());
-                        senders[shard_id][rand_send_thread_idx]
-                            .lock()
-                            .unwrap()
-                            .send(msg, &MessageType::new(execute_command_type));
-                    });
-                
-                /*let shard_txns = &transactions_clone.get_ref().0[shard_id];
-                let index_offset = shard_txns.sub_blocks[0].start_index as usize;
-                let num_txns = shard_txns.num_txns();
-                let mut batch_start_idx = 0;
-
-                for batch in &shard_txns.iter().chunks(batch_size) {
-                    let senders = self.command_txs.clone();
-                    cmd_tx_thread_pool_clone.spawn(move || {
-                        let analyzed_txns = batch.map(|txn| {
-                            txn.txn()
-                        }).collect::<Vec<&AnalyzedTransaction>>();
-                        let execution_batch_req = CmdsAndMetaDataRef {
-                            cmds: &analyzed_txns,
-                            num_txns,
-                            shard_txns_start_index: index_offset,
-                            batch_start_index: batch_start_idx,
-                        };
-                        let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-                            .with_label_values(&["0", "cmd_tx_bcs_ser"])
-                            .start_timer();
-                        let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
-                        drop(bcs_ser_timer);
-                        REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                            .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
-                        let execute_command_type = format!("execute_command_{}", shard_id);
-                        senders[shard_id]
-                            .lock()
-                            .unwrap()
-                            .send(msg, &MessageType::new(execute_command_type));
-                    });*/
-
-
-                /*let analyzed_txns = &transactions_clone.get_ref().0[shard_id]
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, txn)| {
-                        (txn.txn(), idx)
-                    }).collect::<Vec<(&AnalyzedTransaction, usize)>>();
-
-                let mut st_idx = 0;
-
-                while st_idx < num_txns {
-                    let end_idx = std::cmp::min(st_idx + batch_size, num_txns);
+            let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
+            let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
+            let num_txns = shard_txns.len();
+            chunked_txs[shard_id] = shard_txns
+                .chunks(batch_size).enumerate()
+                .map(|(chunk_idx, txns)| {
+                    let analyzed_txns = txns.iter().map(|txn| {
+                        txn.txn()
+                    }).collect::<Vec<&AnalyzedTransaction>>();
                     let execution_batch_req = CmdsAndMetaDataRef {
-                        cmds: &analyzed_txns[st_idx..end_idx],
+                        cmds: &analyzed_txns,
                         num_txns,
                         shard_txns_start_index: index_offset,
                         onchain_config: &onchain_config_clone,
+                        batch_start_index: chunk_idx * batch_size,
                     };
-                    let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-                        .with_label_values(&["0", "cmd_tx_bcs_ser"])
-                        .start_timer();
-                    let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
-                    drop(bcs_ser_timer);
+                    Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0)
+                }).collect::<Vec<Message>>();
+        }
+        // NOTE: sending transactions to shards
+        let max_batch_size = chunked_txs.iter().map(|txs| txs.len()).max().unwrap();
+        for i in 0..max_batch_size {
+            for j in 0..self.num_shards() {
+                if (i >= chunked_txs[j].len()) {
+                    continue;
+                }
+                let chunked_txs_clone = chunked_txs.clone();
+                let senders = self.command_txs.clone();
+                self.cmd_tx_thread_pool.spawn(move || {
+                    let msg = chunked_txs_clone[j][i].clone();
                     REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
                         .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
-                    let execute_command_type = format!("execute_command_{}", shard_id);
-                    senders[shard_id]
+                    let execute_command_type = format!("execute_command_{}", j);
+                    let mut rng = StdRng::from_entropy();
+                    let rand_send_thread_idx = rng.gen_range(0, senders[j].len());
+                    senders[j][rand_send_thread_idx]
                         .lock()
                         .unwrap()
                         .send(msg, &MessageType::new(execute_command_type));
-                    st_idx += batch_size;
-                }
-
-                let execution_request = RemoteExecutionRequestRef::ExecuteBlock(ExecuteBlockCommandRef {
-                    sub_blocks: &transactions_clone.get_ref().0[shard_id],
-                    concurrency_level: concurrency_level_per_shard,
-                    onchain_config: &onchain_config_clone,
                 });
-
-                let execute_command_type = format!("execute_command_{}", shard_id);
-                let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
-                    .with_label_values(&["0", "cmd_tx_bcs_ser"])
-                    .start_timer();
-                let msg = Message::create_with_metadata(bcs::to_bytes(&execution_request).unwrap(), duration_since_epoch, 0, 0);
-                drop(bcs_ser_timer);
-                REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
-                    .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
-                senders[shard_id]
-                    .lock()
-                    .unwrap()
-                    .send(msg, &MessageType::new(execute_command_type));*/
-            });
+            }
         }
+
+        // let mut expected_outputs = vec![0; self.num_shards()];
+        // let batch_size = 200;
+        // for (shard_id, _) in sub_blocks.into_iter().enumerate() {
+        //     expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
+        //     // TODO: Check if the function can get Arc<BlockExecutorConfigFromOnchain> instead.
+        //     let onchain_config_clone = onchain_config.clone();
+        //     let transactions_clone = transactions.clone();
+        //     let senders = self.command_txs.clone();
+        //     self.cmd_tx_thread_pool.spawn(move || {
+        //         let shard_txns = &transactions_clone.get_ref().0[shard_id].sub_blocks[0].transactions;
+        //         let index_offset = transactions_clone.get_ref().0[shard_id].sub_blocks[0].start_index as usize;
+        //         let num_txns = shard_txns.len();
+        //
+        //         let _ = shard_txns
+        //             .chunks(batch_size)
+        //             .enumerate()
+        //             .for_each(|(chunk_idx, txns)| {
+        //                 let analyzed_txns = txns.iter().map(|txn| {
+        //                     txn.txn()
+        //                 }).collect::<Vec<&AnalyzedTransaction>>();
+        //                 let execution_batch_req = CmdsAndMetaDataRef {
+        //                     cmds: &analyzed_txns,
+        //                     num_txns,
+        //                     shard_txns_start_index: index_offset,
+        //                     onchain_config: &onchain_config_clone,
+        //                     batch_start_index: chunk_idx * batch_size,
+        //                 };
+        //                 let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+        //                     .with_label_values(&["0", "cmd_tx_bcs_ser"])
+        //                     .start_timer();
+        //                 let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
+        //                 drop(bcs_ser_timer);
+        //                 REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //                     .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
+        //                 let execute_command_type = format!("execute_command_{}", shard_id);
+        //                 let mut rng = StdRng::from_entropy();
+        //                 let rand_send_thread_idx = rng.gen_range(0, senders[shard_id].len());
+        //                 senders[shard_id][rand_send_thread_idx]
+        //                     .lock()
+        //                     .unwrap()
+        //                     .send(msg, &MessageType::new(execute_command_type));
+        //             });
+        //
+        //         /*let shard_txns = &transactions_clone.get_ref().0[shard_id];
+        //         let index_offset = shard_txns.sub_blocks[0].start_index as usize;
+        //         let num_txns = shard_txns.num_txns();
+        //         let mut batch_start_idx = 0;
+        //
+        //         for batch in &shard_txns.iter().chunks(batch_size) {
+        //             let senders = self.command_txs.clone();
+        //             cmd_tx_thread_pool_clone.spawn(move || {
+        //                 let analyzed_txns = batch.map(|txn| {
+        //                     txn.txn()
+        //                 }).collect::<Vec<&AnalyzedTransaction>>();
+        //                 let execution_batch_req = CmdsAndMetaDataRef {
+        //                     cmds: &analyzed_txns,
+        //                     num_txns,
+        //                     shard_txns_start_index: index_offset,
+        //                     batch_start_index: batch_start_idx,
+        //                 };
+        //                 let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+        //                     .with_label_values(&["0", "cmd_tx_bcs_ser"])
+        //                     .start_timer();
+        //                 let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
+        //                 drop(bcs_ser_timer);
+        //                 REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //                     .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
+        //                 let execute_command_type = format!("execute_command_{}", shard_id);
+        //                 senders[shard_id]
+        //                     .lock()
+        //                     .unwrap()
+        //                     .send(msg, &MessageType::new(execute_command_type));
+        //             });*/
+        //
+        //
+        //         /*let analyzed_txns = &transactions_clone.get_ref().0[shard_id]
+        //             .iter()
+        //             .enumerate()
+        //             .map(|(idx, txn)| {
+        //                 (txn.txn(), idx)
+        //             }).collect::<Vec<(&AnalyzedTransaction, usize)>>();
+        //
+        //         let mut st_idx = 0;
+        //
+        //         while st_idx < num_txns {
+        //             let end_idx = std::cmp::min(st_idx + batch_size, num_txns);
+        //             let execution_batch_req = CmdsAndMetaDataRef {
+        //                 cmds: &analyzed_txns[st_idx..end_idx],
+        //                 num_txns,
+        //                 shard_txns_start_index: index_offset,
+        //                 onchain_config: &onchain_config_clone,
+        //             };
+        //             let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+        //                 .with_label_values(&["0", "cmd_tx_bcs_ser"])
+        //                 .start_timer();
+        //             let msg = Message::create_with_metadata(bcs::to_bytes(&execution_batch_req).unwrap(), duration_since_epoch, 0, 0);
+        //             drop(bcs_ser_timer);
+        //             REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //                 .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
+        //             let execute_command_type = format!("execute_command_{}", shard_id);
+        //             senders[shard_id]
+        //                 .lock()
+        //                 .unwrap()
+        //                 .send(msg, &MessageType::new(execute_command_type));
+        //             st_idx += batch_size;
+        //         }
+        //
+        //         let execution_request = RemoteExecutionRequestRef::ExecuteBlock(ExecuteBlockCommandRef {
+        //             sub_blocks: &transactions_clone.get_ref().0[shard_id],
+        //             concurrency_level: concurrency_level_per_shard,
+        //             onchain_config: &onchain_config_clone,
+        //         });
+        //
+        //         let execute_command_type = format!("execute_command_{}", shard_id);
+        //         let bcs_ser_timer = REMOTE_EXECUTOR_TIMER
+        //             .with_label_values(&["0", "cmd_tx_bcs_ser"])
+        //             .start_timer();
+        //         let msg = Message::create_with_metadata(bcs::to_bytes(&execution_request).unwrap(), duration_since_epoch, 0, 0);
+        //         drop(bcs_ser_timer);
+        //         REMOTE_EXECUTOR_CMD_RESULTS_RND_TRP_JRNY_TIMER
+        //             .with_label_values(&["1_cmd_tx_msg_send"]).observe(get_delta_time(duration_since_epoch) as f64);
+        //         senders[shard_id]
+        //             .lock()
+        //             .unwrap()
+        //             .send(msg, &MessageType::new(execute_command_type));*/
+        //     });
+        // }
 
         drop(cmd_tx_timer);
 
