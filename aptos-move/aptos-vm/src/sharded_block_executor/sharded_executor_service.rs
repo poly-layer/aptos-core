@@ -226,7 +226,7 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
             self.shard_id,
             self.num_shards
         );
-
+        let mut cnt = 0;
         let mut cumulative_txns = 0;
         loop {
            // info!("Looping back to recv cmd after execution of a block********************");
@@ -348,6 +348,20 @@ impl<S: StateView + Sync + Send + 'static> ShardedExecutorService<S> {
                 txn_output: TransactionOutput::default(),
             }).unwrap();
             stream_results_thread.join().unwrap();
+            if (cnt % 50 == 49) {
+                let exe_time = SHARDED_EXECUTOR_SERVICE_SECONDS
+                    .get_metric_with_label_values(&[&self.shard_id.to_string(), "execute_block"])
+                    .unwrap()
+                    .get_sample_sum();
+                 info!(
+                    "Shard {} is shutting down; On shard execution tps {} txns/s ({} txns / {} s)",
+                    self.shard_id,
+                    (cumulative_txns as f64 / exe_time),
+                    cumulative_txns,
+                    exe_time
+                );
+            }
+            cnt = cnt + 1;
         }
 
         let exe_time = SHARDED_EXECUTOR_SERVICE_SECONDS
