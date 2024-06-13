@@ -334,7 +334,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
                 if (i >= chunked_txs[j].len()) {
                     continue;
                 }
-                let chunked_txs_clone = chunked_txs.clone();
+                let chunked_txs_clone = Arc::new(&chunked_txs);
                 let senders = self.command_txs.clone();
                 //self.cmd_tx_thread_pool.spawn(move || {
                     let msg = chunked_txs_clone[j][i].clone();
