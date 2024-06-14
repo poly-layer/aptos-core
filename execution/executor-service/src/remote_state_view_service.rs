@@ -61,7 +61,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
             .unwrap();
         let kv_request_type = "remote_kv_request";
         let kv_response_type = "remote_kv_response";
-        let result_threads = 8;
+        let result_threads = remote_shard_addresses.len();
         let result_rx = (0..result_threads)
             .into_iter()
             .map(|thread_id |
