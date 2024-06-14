@@ -152,6 +152,10 @@ git_update_command = [
     f"cd aptos-core/ && git checkout multi_machine_sharding_multi_thread_kv_rx_handler && git pull",
 ]
 
+git_update_command = [
+    f"cd aptos-core/ && git pull && git checkout multi_machine_sharding_par_tx_rand_rx && git pull",
+]
+
 def get_external_ip(instance):
     credentials, project = google.auth.default()
     credentials.refresh(Request())
