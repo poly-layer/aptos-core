@@ -170,7 +170,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
         let cmd_tx_thread_pool = Arc::new(
             rayon::ThreadPoolBuilder::new()
                 .thread_name(move |index| format!("rmt-exe-cli-cmd-tx-{}", index))
-                .num_threads(12) //(num_cpus::get() / 2)
+                .num_threads(4) //(num_cpus::get() / 2)
                 .build()
                 .unwrap(),
         );
@@ -373,7 +373,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         // batch transactions
         let time = Instant::now();
         let mut expected_outputs = vec![0; self.num_shards()];
-        let batch_size = 30usize;
+        let batch_size = 200usize;
         let mut chunked_txs = vec![vec![]; self.num_shards()];
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
