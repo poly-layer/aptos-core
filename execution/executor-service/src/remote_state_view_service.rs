@@ -114,7 +114,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         //                                               kv_unprocessed_pq_clone.clone(),
         //                                               recv_condition_clone.clone()));
         // }
-        let result_threads = 16;
+        let result_threads = 8;
         (0..result_threads).into_par_iter().for_each(|thread_id|
             while let Ok(message) = self.kv_rx[thread_id].recv() {
                 let curr_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
