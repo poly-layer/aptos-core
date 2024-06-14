@@ -38,8 +38,8 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         remote_shard_addresses: Vec<SocketAddr>,
         num_threads: Option<usize>,
     ) -> Self {
-        let num_threads = 60;
-        let num_kv_req_threads= 15;
+        let num_threads = 30;
+        let num_kv_req_threads= 30;
         // let num_threads = num_threads.unwrap_or_else(num_cpus::get);
         //let num_kv_req_threads = num_cpus::get() / 2;
         let num_shards = remote_shard_addresses.len();
@@ -134,7 +134,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                 let kv_tx_clone = self.kv_tx.clone();
 
                 thread_pool_clone
-                        .spawn(move || {let mut rng = StdRng::from_entropy(); Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng)});
+                        .spawn_fifo(move || {let mut rng = StdRng::from_entropy(); Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng)});
 
                 REMOTE_EXECUTOR_TIMER
                     .with_label_values(&["0", "kv_req_pq_size"])
