@@ -212,7 +212,7 @@ impl RemoteStateViewClient {
         let num_threads = 16;
         let rand_thread = rand::thread_rng().gen_range(0, num_threads);
         sender_lk.send(Message::create_with_metadata(request_message, duration_since_epoch, seq_num, shard_id as u64),
-                       &MessageType::new(format!("remote_kv_request_{}", rand_thread)));
+                       &MessageType::new(format!("remote_kv_request_{}", shard_id)));
         // sender_lk.send(Message::create_with_metadata(request_message, duration_since_epoch, seq_num, shard_id as u64),
         //                &MessageType::new(REMOTE_KV_REQUEST_MSG_TYPE.to_string()));
     }

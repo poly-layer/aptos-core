@@ -250,7 +250,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteExecutorClient<S> {
             shard_id: usize,
             transactions: Vec<TransactionIdxAndOutput>,
         }
-        let num_recv_threads = 4;
+        let num_recv_threads = 2;
         let async_results: Vec<Vec<AsyncTransactionOutput>> = (0..num_recv_threads).into_par_iter().map(|channel_id| {
             let mut outputs = vec![];
             let mut can_break = false;
@@ -373,7 +373,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         // batch transactions
         let time = Instant::now();
         let mut expected_outputs = vec![0; self.num_shards()];
-        let batch_size = 600usize;
+        let batch_size = 200usize;
         let mut chunked_txs = vec![vec![]; self.num_shards()];
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;

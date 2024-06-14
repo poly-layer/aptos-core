@@ -132,9 +132,12 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                 //let priority = message.seq_num.unwrap();
                 let state_view_clone = self.state_view.clone();
                 let kv_tx_clone = self.kv_tx.clone();
-
-                thread_pool_clone
-                        .spawn_fifo(move || {let mut rng = StdRng::from_entropy(); Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng)});
+                {
+                    let mut rng = StdRng::from_entropy();
+                    Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng);
+                }
+                // thread_pool_clone
+                //        .spawn_fifo(move || {let mut rng = StdRng::from_entropy(); Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng)});
 
                 REMOTE_EXECUTOR_TIMER
                     .with_label_values(&["0", "kv_req_pq_size"])
