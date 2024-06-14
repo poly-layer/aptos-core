@@ -101,7 +101,6 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
     pub fn start(&self) {
         //let (signal_tx, signal_rx) = unbounded();
         let thread_pool_clone = self.thread_pool.clone();
-
         info!("Num handlers created is {}", thread_pool_clone.current_num_threads());
         // for _ in 0..thread_pool_clone.current_num_threads() {
         //     let state_view_clone = self.state_view.clone();
@@ -115,7 +114,12 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         //                                               recv_condition_clone.clone()));
         // }
         let result_threads = 16;
-        (0..result_threads).into_par_iter().for_each(|thread_id|
+        (0..result_threads).into_par_iter().for_each(|thread_id| -> () {
+            let local_thread_pool = Arc::new(rayon::ThreadPoolBuilder::new()
+                .num_threads(4)
+                .thread_name(|i| format!("remote-state-view-service-kv-request-handler-{}", i))
+                .build()
+                .unwrap());
             while let Ok(message) = self.kv_rx[thread_id].recv() {
                 let curr_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
                 let mut delta = 0.0;
@@ -132,16 +136,20 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
                 //let priority = message.seq_num.unwrap();
                 let state_view_clone = self.state_view.clone();
                 let kv_tx_clone = self.kv_tx.clone();
-                {
-                    let mut rng = StdRng::from_entropy();
-                    Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng);
-                }
-                // thread_pool_clone
-                //        .spawn_fifo(move || {let mut rng = StdRng::from_entropy(); Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng)});
+                // {
+                //     let mut rng = StdRng::from_entropy();
+                //     Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng);
+                // }
+                local_thread_pool
+                    .spawn_fifo(move || {
+                        let mut rng = StdRng::from_entropy();
+                        Self::handle_message(message, state_view_clone, kv_tx_clone, &mut rng)
+                    });
 
                 REMOTE_EXECUTOR_TIMER
                     .with_label_values(&["0", "kv_req_pq_size"])
                     .observe(self.kv_unprocessed_pq.len() as f64);
+            }
         });
 
         // while let Ok(message) = self.kv_rx[thread_id].recv() {
