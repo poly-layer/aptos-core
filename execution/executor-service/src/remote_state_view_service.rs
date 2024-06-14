@@ -39,7 +39,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         num_threads: Option<usize>,
     ) -> Self {
         let num_threads = 60;
-        let num_kv_req_threads= 60;
+        let num_kv_req_threads= 30;
         // let num_threads = num_threads.unwrap_or_else(num_cpus::get);
         //let num_kv_req_threads = num_cpus::get() / 2;
         let num_shards = remote_shard_addresses.len();
@@ -114,7 +114,7 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         //                                               kv_unprocessed_pq_clone.clone(),
         //                                               recv_condition_clone.clone()));
         // }
-        let result_threads = 4;
+        let result_threads = 16;
         (0..result_threads).into_par_iter().for_each(|thread_id|
             while let Ok(message) = self.kv_rx[thread_id].recv() {
                 let curr_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
