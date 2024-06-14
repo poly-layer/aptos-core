@@ -373,7 +373,7 @@ impl<S: StateView + Sync + Send + 'static> ExecutorClient<S> for RemoteExecutorC
         // batch transactions
         let time = Instant::now();
         let mut expected_outputs = vec![0; self.num_shards()];
-        let batch_size = 400usize;
+        let batch_size = 50usize;
         let mut chunked_txs = vec![vec![]; self.num_shards()];
         for (shard_id, _) in sub_blocks.into_iter().enumerate() {
             expected_outputs[shard_id] = transactions.get_ref().0[shard_id].num_txns() as u64;
