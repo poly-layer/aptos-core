@@ -113,10 +113,10 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
         //                                               kv_unprocessed_pq_clone.clone(),
         //                                               recv_condition_clone.clone()));
         // }
-        let result_threads = 16;
+        let result_threads = 4;
         (0..result_threads).into_par_iter().for_each(|thread_id| -> () {
             let local_thread_pool = Arc::new(rayon::ThreadPoolBuilder::new()
-                .num_threads(4)
+                .num_threads(16)
                 .thread_name(|i| format!("remote-state-view-service-kv-request-handler-{}", i))
                 .build()
                 .unwrap());
