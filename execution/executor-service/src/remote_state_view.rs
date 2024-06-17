@@ -222,17 +222,17 @@ impl TStateView for RemoteStateViewClient {
             .start_timer();
         let state_view_reader = self.state_view.read().unwrap();
         // We either directly return or wait and return the key
-        // return state_view_reader.get_state_value(state_key);
-        if state_view_reader.has_state_key(state_key) {
-            // If the key is already in the cache then we return it.
-            return state_view_reader.get_state_value(state_key);
-        }
-        // If the value is not already in the cache then we pre-fetch it and wait for it to arrive.
-        REMOTE_EXECUTOR_REMOTE_KV_COUNT
-            .with_label_values(&[&self.shard_id.to_string(), "non_prefetch_kv"])
-            .inc();
-        self.pre_fetch_state_values(vec![state_key.clone()], true);
-        state_view_reader.get_state_value(state_key)
+        return state_view_reader.get_state_value(state_key);
+        // if state_view_reader.has_state_key(state_key) {
+        //     // If the key is already in the cache then we return it.
+        //     return state_view_reader.get_state_value(state_key);
+        // }
+        // // If the value is not already in the cache then we pre-fetch it and wait for it to arrive.
+        // REMOTE_EXECUTOR_REMOTE_KV_COUNT
+        //     .with_label_values(&[&self.shard_id.to_string(), "non_prefetch_kv"])
+        //     .inc();
+        // self.pre_fetch_state_values(vec![state_key.clone()], true);
+        // state_view_reader.get_state_value(state_key)
     }
 
     fn get_usage(&self) -> Result<StateStorageUsage> {
