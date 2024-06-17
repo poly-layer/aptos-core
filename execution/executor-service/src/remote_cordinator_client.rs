@@ -171,7 +171,8 @@ impl RemoteCoordinatorClient {
                         let batch_start_index = txns.batch_start_index;
                         let state_keys = Self::extract_state_keys_from_txns(&transactions);
 
-                        state_view_client_clone.pre_fetch_state_values(state_keys, false);
+                        state_view_client_clone.pre_fetch_state_values(state_keys, true);
+                        // state_view_client_clone.pre_fetch_state_values(state_keys, false);
 
                         let _ = transactions.into_iter().enumerate().for_each(|(idx, txn)| {
                             blocking_transactions_provider_clone.set_txn(idx + batch_start_index, txn);
