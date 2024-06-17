@@ -219,11 +219,13 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
             .start_timer();
         let resp_serialized = bcs::to_bytes(&resp).unwrap();
         drop(bcs_ser_timer);
-        info!(
-            "remote state view service - sending response for shard {} with {} keys",
-            shard_id,
-            len
-        );
+        if (len >= 200) {
+            info!(
+                "remote state view service - sending response for shard {} with {} keys",
+                shard_id,
+                len
+            );
+        }
         // trace!(
         //     "remote state view service - sending response for shard {} with {} keys",
         //     shard_id,
