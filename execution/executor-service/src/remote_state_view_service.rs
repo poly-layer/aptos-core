@@ -23,7 +23,7 @@ use aptos_secure_net::grpc_network_service::outbound_rpc_helper::OutboundRpcHelp
 use aptos_secure_net::network_controller::metrics::REMOTE_EXECUTOR_RND_TRP_JRNY_TIMER;
 
 pub struct RemoteStateViewService<S: StateView + Sync + Send + 'static> {
-    kv_rx: Receiver<Message>,
+    kv_rx: Vec<Receiver<Message>>,
     kv_unprocessed_pq: Arc<ConcurrentPriorityQueue<Message, u64>>,
     kv_tx: Arc<Vec<Vec<Mutex<OutboundRpcHelper>>>>,
     //thread_pool: Arc<Vec<rayon::ThreadPool>>,
@@ -61,13 +61,13 @@ impl<S: StateView + Sync + Send + 'static> RemoteStateViewService<S> {
             .unwrap();
         let kv_request_type = "remote_kv_request";
         let kv_response_type = "remote_kv_response";
-        let result_rx = controller.create_inbound_channel(kv_request_type.to_string());
-        // let result_threads = remote_shard_addresses.len();
-        // let result_rx = (0..result_threads)
-        //     .into_iter()
-        //     .map(|thread_id |
-        //         controller.create_inbound_channel(format!("remote_kv_request_{}", thread_id
-        //         ))).collect_vec();
+        // let result_rx = controller.create_inbound_channel(kv_request_type.to_string());
+        let result_threads = remote_shard_addresses.len();
+        let result_rx = (0..result_threads)
+            .into_iter()
+            .map(|thread_id |
+                controller.create_inbound_channel(format!("remote_kv_request_{}", thread_id
+                ))).collect_vec();
         let command_txs = remote_shard_addresses
             .iter()
             .map(|address| {
