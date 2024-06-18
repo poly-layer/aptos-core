@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 mod deprecated_fairness;
 mod sender_aware;
+mod use_case_aware;
 
 /// Interface to shuffle transactions
 pub trait TransactionShuffler: Send + Sync {
