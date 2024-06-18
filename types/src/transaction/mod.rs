@@ -451,6 +451,13 @@ impl WriteSetPayload {
             Self::Script { .. } => false,
         }
     }
+
+    pub fn get_changeset(&self) -> Option<ChangeSet> {
+        match self {
+            Self::Direct(changeset) => Some(changeset.clone()),
+            _ => None,
+        }
+    }
 }
 
 /// A transaction that has been signed.
@@ -1975,6 +1982,13 @@ impl Transaction {
     pub fn try_as_block_metadata(&self) -> Option<&BlockMetadata> {
         match self {
             Transaction::BlockMetadata(bm) => Some(bm),
+            _ => None,
+        }
+    }
+
+    pub fn try_as_genesis_txn(&self) -> Option<&WriteSetPayload> {
+        match self {
+            Transaction::GenesisTransaction(g) => Some(g),
             _ => None,
         }
     }
