@@ -1091,7 +1091,14 @@ impl AptosVM {
             bcs::to_bytes(&payload).map_err(|_| invariant_violation_error())?
         } else {
             // Default to empty bytes if payload is not provided.
-            bcs::to_bytes::<Vec<u8>>(&vec![]).map_err(|_| invariant_violation_error())?
+            if self
+                .features()
+                .is_abort_if_multisig_payload_mismatch_enabled()
+            {
+                vec![]
+            } else {
+                bcs::to_bytes::<Vec<u8>>(&vec![]).map_err(|_| invariant_violation_error())?
+            }
         };
         // Failures here will be propagated back.
         let payload_bytes: Vec<Vec<u8>> = session
@@ -1725,7 +1732,8 @@ impl AptosVM {
         // Revalidate the transaction.
         let mut prologue_session =
             unwrap_or_discard!(PrologueSession::new(self, &txn_data, resolver));
-        unwrap_or_discard!(prologue_session.execute(|session| {
+
+        let exec_result = prologue_session.execute(|session| {
             let required_deposit = self.get_required_deposit(
                 session,
                 resolver,
@@ -1743,7 +1751,8 @@ impl AptosVM {
                 is_approved_gov_script,
                 &mut traversal_context,
             )
-        }));
+        });
+        unwrap_or_discard!(exec_result);
         let storage_gas_params = unwrap_or_discard!(get_or_vm_startup_failure(
             &self.storage_gas_params,
             log_context
@@ -2353,6 +2362,7 @@ impl AptosVM {
                         session,
                         txn_data,
                         multisig_payload,
+                        self.features(),
                         log_context,
                         traversal_context,
                     )
