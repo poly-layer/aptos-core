@@ -40,6 +40,7 @@ use std::{
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
+use crate::AccountSignature::NoAccountSignature;
 
 static DUMMY_GUID: Lazy<EventGuid> = Lazy::new(|| EventGuid {
     creation_number: U64::from(0u64),
@@ -1633,6 +1634,7 @@ pub enum AccountSignature {
     MultiEd25519Signature(MultiEd25519Signature),
     SingleKeySignature(SingleKeySignature),
     MultiKeySignature(MultiKeySignature),
+    NoAccountSignature,
 }
 
 impl VerifyInput for AccountSignature {
@@ -1642,6 +1644,7 @@ impl VerifyInput for AccountSignature {
             AccountSignature::MultiEd25519Signature(inner) => inner.verify(),
             AccountSignature::SingleKeySignature(inner) => inner.verify(),
             AccountSignature::MultiKeySignature(inner) => inner.verify(),
+            AccountSignature::NoAccountSignature => Ok(()),
         }
     }
 }
@@ -1815,6 +1818,7 @@ impl From<&AccountAuthenticator> for AccountSignature {
                     signatures_required: public_keys.signatures_required(),
                 })
             },
+            NoAccountAuthenticator => NoAccountSignature,
         }
     }
 }

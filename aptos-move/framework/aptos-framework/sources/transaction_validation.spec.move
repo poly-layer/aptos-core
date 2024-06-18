@@ -106,6 +106,7 @@ spec aptos_framework::transaction_validation {
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
         chain_id: u8,
+        is_simulation: bool,
     ) {
         // TODO(fa_migration)
         pragma verify = false;
@@ -121,6 +122,7 @@ spec aptos_framework::transaction_validation {
         txn_expiration_time: u64,
         chain_id: u8,
         _script_hash: vector<u8>,
+        is_simulation: bool,
     ) {
         // TODO(fa_migration)
         pragma verify = false;
@@ -156,6 +158,7 @@ spec aptos_framework::transaction_validation {
     spec multi_agent_common_prologue(
         secondary_signer_addresses: vector<address>,
         secondary_signer_public_key_hashes: vector<vector<u8>>,
+        is_simulation: bool,
     ) {
         include MultiAgentPrologueCommonAbortsIf {
             secondary_signer_addresses,
@@ -175,6 +178,7 @@ spec aptos_framework::transaction_validation {
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
         chain_id: u8,
+        is_simulation: bool,
     ) {
         pragma verify_duration_estimate = 120;
         let gas_payer = signer::address_of(sender);
@@ -203,6 +207,7 @@ spec aptos_framework::transaction_validation {
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
         chain_id: u8,
+        is_simulation: bool,
     ) {
         pragma verify_duration_estimate = 120;
 
@@ -231,7 +236,8 @@ spec aptos_framework::transaction_validation {
         storage_fee_refunded: u64,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
-        gas_units_remaining: u64
+        gas_units_remaining: u64,
+        is_simulation: bool,
     ) {
         // TODO(fa_migration)
         pragma verify = false;
@@ -247,7 +253,8 @@ spec aptos_framework::transaction_validation {
         storage_fee_refunded: u64,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
-        gas_units_remaining: u64
+        gas_units_remaining: u64,
+        is_simulation: bool,
     ) {
         // TODO(fa_migration)
         pragma verify = false;

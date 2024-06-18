@@ -683,6 +683,7 @@ impl AptosVM {
                     txn_data,
                     log_context,
                     traversal_context,
+                    self.is_simulation,
                 )
             })?;
             epilogue_session
@@ -710,6 +711,7 @@ impl AptosVM {
                     txn_data,
                     log_context,
                     traversal_context,
+                    self.is_simulation,
                 )
             })?;
             epilogue_session
@@ -756,6 +758,7 @@ impl AptosVM {
                 txn_data,
                 log_context,
                 traversal_context,
+                self.is_simulation,
             )
         })?;
         let change_set = epilogue_session.finish(change_set_configs)?;
@@ -2342,6 +2345,7 @@ impl AptosVM {
                     txn_data,
                     log_context,
                     traversal_context,
+                    self.is_simulation,
                 )
             },
             TransactionPayload::Multisig(multisig_payload) => {
@@ -2353,6 +2357,7 @@ impl AptosVM {
                     txn_data,
                     log_context,
                     traversal_context,
+                    self.is_simulation,
                 )?;
                 // Skip validation if this is part of tx simulation.
                 // This allows simulating multisig txs without having to first create the multisig
