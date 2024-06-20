@@ -5,12 +5,13 @@ use crate::{create_emitter_and_request, LoadDestination, NetworkLoadTest};
 use anyhow::Context;
 use aptos_forge::{
     args::TransactionTypeArg,
+    emitter::NumAccountsMode,
     prometheus_metrics::{LatencyBreakdown, LatencyBreakdownSlice},
     success_criteria::{SuccessCriteria, SuccessCriteriaChecker},
-    EmitJobMode, EmitJobRequest, NetworkContext, NetworkTest, Result, Test, TxnStats,
+    EmitJob, EmitJobMode, EmitJobRequest, NetworkContext, NetworkTest, Result, Test, TxnStats,
     WorkflowProgress,
 };
-use aptos_logger::info;
+use aptos_logger::{info, error};
 use rand::SeedableRng;
 use std::{fmt::Debug, time::Duration};
 use tokio::runtime::Runtime;
@@ -62,6 +63,18 @@ impl Workloads {
         }
     }
 
+    fn desc(&self, index: usize) -> String {
+        match self {
+            Self::TPS(tpss) => {
+                format!("TPS({})", tpss[index])
+            },
+            Self::TRANSACTIONS(workloads) => format!(
+                "TRANSACTIONS({:?})",
+                workloads[index]
+            ),
+        }
+    }
+
     fn phase_name(&self, index: usize, phase: usize) -> String {
         match self {
             Self::TPS(tpss) => {
@@ -98,15 +111,70 @@ impl Workloads {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct TransactionWorkload {
     pub transaction_type: TransactionTypeArg,
     pub num_modules: usize,
     pub unique_senders: bool,
-    pub mempool_backlog: usize,
+    pub load: EmitJobMode,
+    pub transactions_per_account_override: Option<usize>,
 }
 
 impl TransactionWorkload {
+    pub fn new(transaction_type: TransactionTypeArg, mempool_backlog: usize) -> Self {
+        Self {
+            transaction_type,
+            num_modules: 1,
+            unique_senders: false,
+            load: EmitJobMode::MaxLoad { mempool_backlog },
+            transactions_per_account_override: None,
+        }
+    }
+
+    pub fn new_const_tps(transaction_type: TransactionTypeArg, tps: usize) -> Self {
+        Self {
+            transaction_type,
+            num_modules: 1,
+            unique_senders: false,
+            load: EmitJobMode::ConstTps { tps },
+            transactions_per_account_override: None,
+        }
+    }
+
+    pub fn new_wave_tps(
+        transaction_type: TransactionTypeArg,
+        average_tps: usize,
+        wave_ratio: f32,
+        num_waves: usize,
+    ) -> Self {
+        Self {
+            transaction_type,
+            num_modules: 1,
+            unique_senders: false,
+            load: EmitJobMode::WaveTps {
+                average_tps,
+                wave_ratio,
+                num_waves,
+            },
+            transactions_per_account_override: None,
+        }
+    }
+
+    pub fn with_num_modules(mut self, num_modules: usize) -> Self {
+        self.num_modules = num_modules;
+        self
+    }
+
+    pub fn with_unique_senders(mut self) -> Self {
+        self.unique_senders = true;
+        self
+    }
+
+    pub fn with_transactions_per_account(mut self, transactions_per_account: usize) -> Self {
+        self.transactions_per_account_override = Some(transactions_per_account);
+        self
+    }
+
     fn is_phased(&self) -> bool {
         self.unique_senders
     }
@@ -115,9 +183,13 @@ impl TransactionWorkload {
         let account_creation_type =
             TransactionTypeArg::AccountGenerationLargePool.materialize_default();
 
-        let request = request.mode(EmitJobMode::MaxLoad {
-            mempool_backlog: self.mempool_backlog,
-        });
+        let mut request = request.mode(self.load.clone());
+
+        if let Some(transactions_per_account) = &self.transactions_per_account_override {
+            request = request.num_accounts_mode(NumAccountsMode::TransactionsPerAccount(
+                *transactions_per_account,
+            ))
+        }
 
         if self.is_phased() {
             let write_type = self.transaction_type.materialize(
@@ -144,7 +216,7 @@ impl TransactionWorkload {
 
     fn phase_name(&self, phase: usize) -> String {
         format!(
-            "{}{}[{:.1}k]",
+            "{}{}[{}]",
             match (self.is_phased(), phase) {
                 (true, 0) => "CreateBurnerAccounts".to_string(),
                 (true, 1) => format!("{:?}", self.transaction_type),
@@ -156,7 +228,14 @@ impl TransactionWorkload {
             } else {
                 "".to_string()
             },
-            self.mempool_backlog as f32 / 1000.0,
+            match self.load {
+                EmitJobMode::MaxLoad { mempool_backlog } =>
+                    format!("{:.1}kM", mempool_backlog as f32 / 1000.0),
+                EmitJobMode::ConstTps { tps } => format!("{:.1}kT", tps as f32 / 1000.0),
+                EmitJobMode::WaveTps { average_tps, .. } =>
+                    format!("~{:.1}kT", average_tps as f32 / 1000.0),
+            },
+            // ,
         )
     }
 }
@@ -187,6 +266,7 @@ impl LoadVsPerfBenchmark {
         workloads: &Workloads,
         index: usize,
         duration: Duration,
+        synchronized_with_job: Option<&mut EmitJob>,
     ) -> Result<Vec<SingleRunStats>> {
         let rng = SeedableRng::from_rng(ctx.core().rng())?;
         let emit_job_request = workloads.configure(index, ctx.emit_job.clone());
@@ -197,6 +277,7 @@ impl LoadVsPerfBenchmark {
             PER_TEST_WARMUP_DURATION_FRACTION,
             PER_TEST_COOLDOWN_DURATION_FRACTION,
             rng,
+            synchronized_with_job,
         )?;
 
         let mut result = vec![];
@@ -258,11 +339,7 @@ impl NetworkTest for LoadVsPerfBenchmark {
                 std::thread::sleep(buffer);
             }
 
-            if let Some(job) = continous_job.as_mut() {
-                job.start_next_phase()
-            }
-
-            info!("Starting for {:?}", self.workloads);
+            info!("Starting for [{}]: {:?}", index, self.workloads.desc(index));
             results.push(
                 self.evaluate_single(
                     ctx,
@@ -271,7 +348,8 @@ impl NetworkTest for LoadVsPerfBenchmark {
                     phase_duration
                         .checked_mul(self.workloads.num_phases(index) as u32)
                         .unwrap(),
-                )?,
+                    continous_job.as_mut(),
+                ).inspect_err(|e| error!("Failed evaluating single run [{}]: {:?} with {:?}", index, self.workloads.desc(index), e))?,
             );
 
             let table = to_table(self.workloads.type_name(), &results);
@@ -279,8 +357,7 @@ impl NetworkTest for LoadVsPerfBenchmark {
                 info!("{}", line);
             }
 
-            if let Some(job) = continous_job.as_mut() {
-                job.start_next_phase();
+            if let Some(job) = &continous_job {
                 let stats_by_phase = job.peek_and_accumulate();
                 for line in to_table_continuous(
                     "continuous traffic".to_string(),
@@ -445,27 +522,18 @@ fn test_phases_duration() {
     use assert_approx_eq::assert_approx_eq;
     use std::ops::{Add, Mul};
 
-    let one_phase = TransactionWorkload {
-        transaction_type: TransactionTypeArg::CoinTransfer,
-        num_modules: 1,
-        unique_senders: false,
-        mempool_backlog: 20000,
-    };
-    let two_phase = TransactionWorkload {
-        transaction_type: TransactionTypeArg::ModifyGlobalResource,
-        num_modules: 1,
-        unique_senders: true,
-        mempool_backlog: 20000,
-    };
+    let one_phase = TransactionWorkload::new(TransactionTypeArg::CoinTransfer, 20000);
+    let two_phase = TransactionWorkload::new(TransactionTypeArg::ModifyGlobalResource, 20000)
+        .with_unique_senders();
 
     {
-        let workload = Workloads::TRANSACTIONS(vec![one_phase]);
+        let workload = Workloads::TRANSACTIONS(vec![one_phase.clone()]);
         let (phase, _buffer) = workload.split_duration(Duration::from_secs(1));
         assert_approx_eq!(phase.as_secs_f32(), 1.0);
     }
 
     {
-        let workload = Workloads::TRANSACTIONS(vec![one_phase, one_phase]);
+        let workload = Workloads::TRANSACTIONS(vec![one_phase.clone(), one_phase.clone()]);
         let (phase, buffer) = workload.split_duration(Duration::from_secs(1));
         assert_approx_eq!(phase.as_secs_f32(), 1.0 / 2.2);
         assert_approx_eq!(buffer.as_secs_f32(), 1.0 / 2.2 * 0.2);
@@ -473,14 +541,19 @@ fn test_phases_duration() {
     }
 
     {
-        let workload = Workloads::TRANSACTIONS(vec![two_phase]);
+        let workload = Workloads::TRANSACTIONS(vec![two_phase.clone()]);
         let (phase, _buffer) = workload.split_duration(Duration::from_secs(1));
         assert_approx_eq!(phase.as_secs_f32(), 0.5);
     }
 
     {
-        let workload =
-            Workloads::TRANSACTIONS(vec![one_phase, one_phase, two_phase, two_phase, two_phase]);
+        let workload = Workloads::TRANSACTIONS(vec![
+            one_phase.clone(),
+            one_phase,
+            two_phase.clone(),
+            two_phase.clone(),
+            two_phase,
+        ]);
         let (phase, buffer) = workload.split_duration(Duration::from_secs(1));
         assert_approx_eq!(phase.as_secs_f32(), 1.0 / 8.8);
         assert_approx_eq!(buffer.as_secs_f32(), 1.0 / 8.8 * 0.2);
