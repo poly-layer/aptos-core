@@ -96,15 +96,12 @@ impl ChunkOutput {
         let transactions_arc_clone = transactions_arc.clone();
         drop(timer);
 
-        let (sender, receiver) = mpsc::channel();
-        rayon::spawn(move || {
-            let transactions_clone = (*transactions_arc_clone).clone();
-            let flattened_txns = PartitionedTransactions::flatten(transactions_clone)
-                .into_iter()
-                .map(|t| t.into_txn().into_inner())
-                .collect();
-            sender.send(flattened_txns).unwrap();
-        });
+        // let (sender, receiver) = mpsc::channel();
+        // rayon::spawn(move ||
+        //{
+            //sender.send(flattened_txns).unwrap();
+        //}
+        // );
 
         let transaction_outputs = Self::execute_block_sharded::<V>(
             transactions_arc,
@@ -120,8 +117,15 @@ impl ChunkOutput {
         let _timer = TIMER
             .with_label_values(&["flatten_results"])
             .start_timer();
+
+        let transactions_clone = (*transactions_arc_clone).clone();
+        let flattened_txns = PartitionedTransactions::flatten(transactions_clone)
+            .into_iter()
+            .map(|t| t.into_txn().into_inner())
+            .collect();
+
         Ok(Self {
-            transactions: receiver.recv().unwrap(),
+            transactions: flattened_txns, //receiver.recv().unwrap(),
             transaction_outputs,
             state_cache: state_view.into_state_cache(),
         })
