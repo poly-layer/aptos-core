@@ -153,6 +153,11 @@ pub enum TransactionShufflerType {
         module_conflict_window_size: u32,
         entry_fun_conflict_window_size: u32,
     },
+    UseCaseAware {
+        sender_spread_factor: usize,
+        platform_use_case_spread_factor: usize,
+        user_use_case_spread_factor: usize,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

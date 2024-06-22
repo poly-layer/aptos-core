@@ -15,9 +15,9 @@ mod tests;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Config {
-    sender_spread_factor: usize,
-    platform_use_case_spread_factor: usize,
-    user_use_case_spread_factor: usize,
+    pub sender_spread_factor: usize,
+    pub platform_use_case_spread_factor: usize,
+    pub user_use_case_spread_factor: usize,
 }
 
 impl Config {
@@ -34,7 +34,13 @@ impl Config {
 }
 
 pub struct UseCaseAwareShuffler {
-    config: Config,
+    pub config: Config,
+}
+
+impl UseCaseAwareShuffler {
+    pub fn new(config: Config) -> Self {
+        Self { config }
+    }
 }
 
 impl TransactionShuffler for UseCaseAwareShuffler {

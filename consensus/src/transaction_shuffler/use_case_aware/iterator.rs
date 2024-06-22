@@ -80,12 +80,11 @@ where
         }
 
         // 3. If nothing is ready, return the next eligible from the delay queue
-        let ret = self.delayed_queue.pop_head(false);
+        self.delayed_queue.pop_head(false)
         // println!(
         //     "--- {}: force select head {:?} from the delay queue",
         //     self.output_idx, ret
         // );
-        ret
     }
 }
 
