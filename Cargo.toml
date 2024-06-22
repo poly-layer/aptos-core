@@ -573,6 +573,7 @@ fxhash = "0.2.1"
 getrandom = "0.2.2"
 gcp-bigquery-client = "0.13.0"
 get_if_addrs = "0.5.3"
+get-size = { version = "0.1.4", features = ["derive"] }
 git2 = "0.16.1"
 glob = "0.3.0"
 goldenfile = "1.5.2"

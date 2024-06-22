@@ -13,12 +13,8 @@ repository = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-dashmap = { workspace = true }
-futures = { workspace = true }
 parking_lot = { workspace = true }
-tokio = { workspace = true }
-tokio-util = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
-allocative = { workspace = true }
+get-size = { workspace = true }
+tokio = { workspace = true }
