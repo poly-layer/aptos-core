@@ -1151,6 +1151,25 @@ fn realistic_env_fairness_workload_sweep() -> ForgeConfig {
     .with_genesis_helm_config_fn(Arc::new(|helm_values| {
         // no epoch change.
         helm_values["chain"]["epoch_duration_secs"] = (24 * 3600).into();
+        let mut on_chain_execution_config = OnChainExecutionConfig::default_for_genesis();
+        // Need to update if the default changes
+        match &mut on_chain_execution_config {
+            OnChainExecutionConfig::Missing
+            | OnChainExecutionConfig::V1(_)
+            | OnChainExecutionConfig::V2(_)
+            | OnChainExecutionConfig::V3(_) => {
+                unreachable!("Unexpected on-chain execution config type, if OnChainExecutionConfig::default_for_genesis() has been updated, this test must be updated too.")
+            }
+            OnChainExecutionConfig::V4(config_v4) => {
+                config_v4.transaction_shuffler_type = TransactionShufflerType::UseCaseAware {
+                    sender_spread_factor: 32,
+                    platform_use_case_spread_factor: 0,
+                    user_use_case_spread_factor: 2,
+                }
+            }
+        }
+        helm_values["chain"]["on_chain_execution_config"] =
+            serde_yaml::to_value(on_chain_execution_config).expect("must serialize");
     }))
 }
 
@@ -1184,7 +1203,6 @@ fn realistic_env_graceful_workload_sweep() -> ForgeConfig {
             TransactionWorkload::new_const_tps(TransactionTypeArg::VectorPicture30k, 3 * 150),
             // Very low gas
             TransactionWorkload::new_const_tps(TransactionTypeArg::ModifyGlobalFlagAggV2, 3 * 3500),
-
             // TransactionWorkload::new_const_tps(TransactionTypeArg::ModifyGlobalFlagAggV2, 3 * 3500)
             //     .with_transactions_per_account(1),
             // TransactionWorkload::new_const_tps(TransactionTypeArg::ModifyGlobalFlagAggV2, 3 * 3500)

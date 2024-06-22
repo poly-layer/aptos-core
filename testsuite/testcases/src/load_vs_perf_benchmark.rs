@@ -11,7 +11,7 @@ use aptos_forge::{
     EmitJob, EmitJobMode, EmitJobRequest, NetworkContext, NetworkTest, Result, Test, TxnStats,
     WorkflowProgress,
 };
-use aptos_logger::{info, error};
+use aptos_logger::{error, info};
 use rand::SeedableRng;
 use std::{fmt::Debug, time::Duration};
 use tokio::runtime::Runtime;
@@ -68,10 +68,7 @@ impl Workloads {
             Self::TPS(tpss) => {
                 format!("TPS({})", tpss[index])
             },
-            Self::TRANSACTIONS(workloads) => format!(
-                "TRANSACTIONS({:?})",
-                workloads[index]
-            ),
+            Self::TRANSACTIONS(workloads) => format!("TRANSACTIONS({:?})", workloads[index]),
         }
     }
 
@@ -349,7 +346,15 @@ impl NetworkTest for LoadVsPerfBenchmark {
                         .checked_mul(self.workloads.num_phases(index) as u32)
                         .unwrap(),
                     continous_job.as_mut(),
-                ).inspect_err(|e| error!("Failed evaluating single run [{}]: {:?} with {:?}", index, self.workloads.desc(index), e))?,
+                )
+                .inspect_err(|e| {
+                    error!(
+                        "Failed evaluating single run [{}]: {:?} with {:?}",
+                        index,
+                        self.workloads.desc(index),
+                        e
+                    )
+                })?,
             );
 
             let table = to_table(self.workloads.type_name(), &results);

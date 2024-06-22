@@ -62,14 +62,18 @@ pub fn create_transaction_shuffler(
                 entry_fun_conflict_window_size: entry_fun_conflict_window_size as usize,
             })
         },
-        UseCaseAware { sender_spread_factor, platform_use_case_spread_factor, user_use_case_spread_factor } => {
+        UseCaseAware {
+            sender_spread_factor,
+            platform_use_case_spread_factor,
+            user_use_case_spread_factor,
+        } => {
             info!("Using use case aware transaction shuffling");
             Arc::new(use_case_aware::UseCaseAwareShuffler {
                 config: use_case_aware::Config {
                     sender_spread_factor,
                     platform_use_case_spread_factor,
                     user_use_case_spread_factor,
-                }
+                },
             })
         },
     }
