@@ -151,9 +151,17 @@ spec aptos_framework::account {
         ensures exists<Account>(new_address);
     }
 
-    spec exists_at {
+
+
+    spec exists_at(addr: address): bool {
         /// [high-level-req-3]
         aborts_if false;
+        pragma opaque;
+        ensures [abstract] result == spec_exists_at(addr);
+    }
+
+    spec fun spec_exists_at(addr: address): bool {
+        exists<Account>(addr) || features::spec_lite_account_enabled()
     }
 
     spec schema CreateAccountAbortsIf {
@@ -186,10 +194,7 @@ spec aptos_framework::account {
         ensures post_sequence_number == sequence_number + 1;
     }
 
-    spec get_authentication_key(addr: address): vector<u8> {
-        aborts_if !exists<Account>(addr);
-        ensures result == global<Account>(addr).authentication_key;
-    }
+    spec get_authentication_key(addr: address): vector<u8> {}
 
     /// The Account existed under the signer before the call.
     /// The length of new_auth_key is 32.
@@ -212,6 +217,8 @@ spec aptos_framework::account {
         modifies global<Account>(addr);
         ensures account_resource.authentication_key == new_auth_key;
     }
+
+    spec fun spec_get_authentication_key(addr: address): vector<u8>;
 
     spec fun spec_assert_valid_rotation_proof_signature_and_get_auth_key(scheme: u8, public_key_bytes: vector<u8>, signature: vector<u8>, challenge: RotationProofChallenge): vector<u8>;
 

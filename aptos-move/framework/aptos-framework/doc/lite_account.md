@@ -414,16 +414,6 @@ Legacy field from deprecated Account module.
 
 
 
-<a id="0x1_lite_account_ENO_VALID_FRAMEWORK_RESERVED_ADDRESS"></a>
-
-Address to create is not a valid reserved address for Aptos framework
-
-
-<pre><code><b>const</b> <a href="lite_account.md#0x1_lite_account_ENO_VALID_FRAMEWORK_RESERVED_ADDRESS">ENO_VALID_FRAMEWORK_RESERVED_ADDRESS</a>: u64 = 11;
-</code></pre>
-
-
-
 <a id="0x1_lite_account_ESEQUENCE_NUMBER_OVERFLOW"></a>
 
 

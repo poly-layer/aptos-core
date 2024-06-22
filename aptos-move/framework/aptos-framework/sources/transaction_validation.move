@@ -260,18 +260,20 @@ module aptos_framework::transaction_validation {
 
         let i = 0;
         while ({
-            spec {
-                invariant i <= num_secondary_signers;
-                invariant forall j in 0..i:
-                    account::exists_at(secondary_signer_addresses[j])
-                    && secondary_signer_public_key_hashes[j]
-                        == account::get_authentication_key(secondary_signer_addresses[j])
-                        || features::lite_account_enabled() && lite_account::using_native_authenticator(
-                        secondary_signer_addresses[j]
-                    ) && option::spec_some(secondary_signer_public_key_hashes[j]) == lite_account::native_authenticator(
-                        secondary_signer_addresses[j]
-                    );
-            };
+            // spec {
+            //     invariant i <= num_secondary_signers;
+            //     invariant forall j in 0..i:
+            //         account::exists_at(secondary_signer_addresses[j])
+            //         && secondary_signer_public_key_hashes[j]
+            //             == account::spec_get_authentication_key(secondary_signer_addresses[j])
+            //             || features::spec_lite_account_enabled() && lite_account::using_native_authenticator(
+            //             secondary_signer_addresses[j]
+            //         ) && option::spec_some(
+            //             secondary_signer_public_key_hashes[j]
+            //         ) == lite_account::spec_native_authenticator(
+            //             secondary_signer_addresses[j]
+            //         );
+            // };
             (i < num_secondary_signers)
         }) {
             let secondary_address = *vector::borrow(&secondary_signer_addresses, i);

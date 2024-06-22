@@ -639,16 +639,6 @@ The provided authentication key has an invalid length
 
 
 
-<a id="0x1_account_ENO_VALID_FRAMEWORK_RESERVED_ADDRESS"></a>
-
-Address to create is not a valid reserved address for Aptos framework
-
-
-<pre><code><b>const</b> <a href="account.md#0x1_account_ENO_VALID_FRAMEWORK_RESERVED_ADDRESS">ENO_VALID_FRAMEWORK_RESERVED_ADDRESS</a>: u64 = 11;
-</code></pre>
-
-
-
 <a id="0x1_account_DERIVE_RESOURCE_ACCOUNT_SCHEME"></a>
 
 Scheme identifier used when hashing an account's address together with a seed to derive the address (not the
@@ -805,6 +795,16 @@ The signer capability offer doesn't exist at the given address
 
 
 <pre><code><b>const</b> <a href="account.md#0x1_account_ENO_SUCH_SIGNER_CAPABILITY">ENO_SUCH_SIGNER_CAPABILITY</a>: u64 = 14;
+</code></pre>
+
+
+
+<a id="0x1_account_ENO_VALID_FRAMEWORK_RESERVED_ADDRESS"></a>
+
+Address to create is not a valid reserved address for Aptos framework
+
+
+<pre><code><b>const</b> <a href="account.md#0x1_account_ENO_VALID_FRAMEWORK_RESERVED_ADDRESS">ENO_VALID_FRAMEWORK_RESERVED_ADDRESS</a>: u64 = 11;
 </code></pre>
 
 
